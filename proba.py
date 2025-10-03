@@ -57,11 +57,13 @@ def transcribe_and_rag(audio_path):
         response = rag_chain.invoke({"query": query})
         answer = response["result"]
         sources = response.get("source_documents", [])
+        simplified_sources = [{"id": doc.id, "title": doc.metadata.get("title")} for doc in sources]
 
         mlflow.log_param("query", query)
         mlflow.log_param("num_docs", len(docs))
         mlflow.log_param("answer", answer)
         mlflow.log_metric("answer_length", len(answer))
+        mlflow.log_param("sources", simplified_sources)
 
     return query, f"Válasz: {answer}"
 
