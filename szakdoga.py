@@ -18,7 +18,7 @@ def transcribe_and_rag(audio_path):
         whisper_time = time.time() - whisper_start
         mlflow.log_metric("whisper_time", whisper_time)
         query = result["text"]
-        print(query)
+        yield gr.update(value=query), None, None
 
         loader = WikipediaLoader(query=query, lang="en", load_max_docs=3)
         raw_docs = loader.load()
@@ -75,12 +75,14 @@ def transcribe_and_rag(audio_path):
 
         reason = response["result"]
         answer = strip_reasoning(reason)
+        yield gr.update(value=query), gr.update(value=answer), None
         sources = response.get("source_documents", [])
         simplified_sources = [{"id": doc.id, "title": doc.metadata.get("title")} for doc in sources]
 
         tts_start = time.time()
         audio = text_to_speech(answer)
         tts_time = time.time() - tts_start
+        yield gr.update(value=query), gr.update(value=answer), gr.update(value=audio)
         mlflow.log_metric("tts_time", tts_time)
 
         mlflow.log_param("reasoning", reason)
@@ -93,14 +95,20 @@ def transcribe_and_rag(audio_path):
         total_time = time.time() - total_start
         mlflow.log_metric("total_time", total_time)
 
-    return f"Leiratozott kérdés:\n{query}", f"Generált válasz:\n{answer}", f"Generált TTS fájl:\n{audio}" 
+    return f"Leiratozott kérdés:\n{query}", f"Generált válasz:\n{answer}", audio
 
-ui = gr.Interface(
-    fn=transcribe_and_rag,
-    inputs=audio_input,
-    outputs=[transcript_output, rag_output, tts_output],
-    title=interface_title,
-)
+with gr.Blocks() as ui:
+    gr.Markdown("<u><h1 style='text-align: center;'>Whisper + RAG + TTS demo</h1></u>")
+    audio_input.render()
+    transcript_output.render()
+    rag_output.render()
+    tts_output.render()
+
+    audio_input.change(
+        fn=transcribe_and_rag,
+        inputs=[audio_input],
+        outputs=[transcript_output, rag_output, tts_output]
+    )
 
 if __name__ == "__main__":
     ui.launch()
