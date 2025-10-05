@@ -16,7 +16,8 @@ dependencies = [
     "langchain-community (>=0.3.30,<0.4.0)",
     "langchain-huggingface (>=0.3.1,<0.4.0)",
     "sentence-transformers (>=5.1.1,<6.0.0)",
-    "wikipedia (>=1.4.0,<2.0.0)"
+    "wikipedia (>=1.4.0,<2.0.0)",
+    "pyttsx3 (>=2.99,<3.0)"
 ]
 
 

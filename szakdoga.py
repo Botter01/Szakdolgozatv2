@@ -1,29 +1,13 @@
-import whisper
+from helper_functions import strip_reasoning, text_to_speech
+from ui_components import audio_input, transcript_output, rag_output, tts_output, interface_title
+from utils import *
 import time
 import gradio as gr
 import mlflow
 from langchain_community.document_loaders import WikipediaLoader
 from langchain_community.vectorstores import FAISS
 from langchain.prompts import PromptTemplate
-from langchain_community.embeddings import OllamaEmbeddings
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.llms import Ollama
 from langchain.chains import RetrievalQA
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-
-
-whisper_model = whisper.load_model("tiny")
-
-#embedding_model = OllamaEmbeddings(model="nomic-embed-text")
-
-embedding_model = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2",
-    encode_kwargs={"batch_size": 32, "normalize_embeddings": True}
-)
-
-model_name = "qwen3:0.6b"
-
-local_llm = Ollama(model=model_name) 
 
 def transcribe_and_rag(audio_path):
     with mlflow.start_run():
@@ -40,9 +24,7 @@ def transcribe_and_rag(audio_path):
         raw_docs = loader.load()
         print("Dokumentumok (nyers):", len(raw_docs))
 
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1500, chunk_overlap=50, separators=["\n\n", "\n", ".", " "]
-        )
+    
         docs = text_splitter.split_documents(raw_docs)
         mlflow.log_param("chunk_size", 1500)
         mlflow.log_param("load_max_docs", 3)
@@ -70,7 +52,10 @@ def transcribe_and_rag(audio_path):
             chain_type_kwargs={
                 "prompt": PromptTemplate(
                     template=(
-                        "Use the following context to answer the question. And only answer the question, don't mention what the question was.\n\n"
+                        "You are a helpful assistant. "
+                        "Use the following context to answer the question **concisely**, "
+                        "and do NOT show your reasoning or thinking process. "
+                        "Only write the final answer.\n\n"
                         "Context:\n{context}\n\n"
                         "Question: {question}\n"
                         "Answer:"
@@ -87,10 +72,18 @@ def transcribe_and_rag(audio_path):
         mlflow.log_param("model_name", model_name)
         mlflow.log_param("parameters", "752M")
         mlflow.log_param("quantization", "Q4_K_M")
-        answer = response["result"]
+
+        reason = response["result"]
+        answer = strip_reasoning(reason)
         sources = response.get("source_documents", [])
         simplified_sources = [{"id": doc.id, "title": doc.metadata.get("title")} for doc in sources]
 
+        tts_start = time.time()
+        audio = text_to_speech(answer)
+        tts_time = time.time() - tts_start
+        mlflow.log_metric("tts_time", tts_time)
+
+        mlflow.log_param("reasoning", reason)
         mlflow.log_param("query", query)
         mlflow.log_param("num_docs", len(docs))
         mlflow.log_param("answer", answer)
@@ -100,18 +93,14 @@ def transcribe_and_rag(audio_path):
         total_time = time.time() - total_start
         mlflow.log_metric("total_time", total_time)
 
-    return query, f"Válasz: {answer}"
+    return f"Leiratozott kérdés:\n{query}", f"Generált válasz:\n{answer}", f"Generált TTS fájl:\n{audio}" 
 
 ui = gr.Interface(
     fn=transcribe_and_rag,
-    inputs=gr.Audio(type="filepath", label="Tölts fel egy hanganyagot"),
-    outputs=[
-        gr.Textbox(label="Whisper leirat", lines=10, max_lines=20, interactive=False),
-        gr.Textbox(label="RAG eredmény", lines=10, max_lines=20, interactive=False)
-    ],
-    title="Whisper + RAG demo",
+    inputs=audio_input,
+    outputs=[transcript_output, rag_output, tts_output],
+    title=interface_title,
 )
-
 
 if __name__ == "__main__":
     ui.launch()
