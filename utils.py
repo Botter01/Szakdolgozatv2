@@ -18,5 +18,5 @@ model_name = "qwen3:0.6b"
 local_llm = Ollama(model=model_name) 
 
 text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1500, chunk_overlap=50, separators=["\n\n", "\n", ".", " "]
+    chunk_size=2500, chunk_overlap=50, separators=["\n\n", "\n", ".", " "]
 )

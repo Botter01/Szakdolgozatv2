@@ -20,14 +20,14 @@ def transcribe_and_rag(audio_path):
         query = result["text"]
         yield gr.update(value=query), None, None
 
-        loader = WikipediaLoader(query=query, lang="en", load_max_docs=3)
+        loader = WikipediaLoader(query=query, lang="en", load_max_docs=7)
         raw_docs = loader.load()
         print("Dokumentumok (nyers):", len(raw_docs))
 
     
         docs = text_splitter.split_documents(raw_docs)
         mlflow.log_param("chunk_size", 1500)
-        mlflow.log_param("load_max_docs", 3)
+        mlflow.log_param("load_max_docs", 10)
         print("Chunkolt dokumentumok száma:", len(docs))
 
         embedding_start = time.time()
@@ -35,8 +35,8 @@ def transcribe_and_rag(audio_path):
         embedding_time = time.time() - embedding_start
         mlflow.log_metric("embedding_time", embedding_time)
 
-        retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
-        mlflow.log_param("retriever_k", 3)
+        retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+        mlflow.log_param("retriever_k", 5)
         mlflow.log_param("search_type", "similarity")
 
         retriever_start = time.time()
@@ -52,13 +52,11 @@ def transcribe_and_rag(audio_path):
             chain_type_kwargs={
                 "prompt": PromptTemplate(
                     template=(
-                        "You are a helpful assistant. "
-                        "Use the following context to answer the question **concisely**, "
-                        "and do NOT show your reasoning or thinking process. "
-                        "Only write the final answer.\n\n"
-                        "Context:\n{context}\n\n"
-                        "Question: {question}\n"
-                        "Answer:"
+                        "You are a helpful assistant. Using ONLY the information in the context, "
+                        "answer the question completely but briefly. "
+                        "Do not include your reasoning or any extra text.\n\n"
+                        "Use ONLY the following context to answer. If the answer is not present, respond 'I don't know'."
+                        "Context:\n{context}\n\nQuestion: {question}\nAnswer:"
                     ),
                     input_variables=["question", "context"], 
                 )
