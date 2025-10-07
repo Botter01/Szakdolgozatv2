@@ -80,7 +80,7 @@ def transcribe_and_rag(audio_path):
         tts_start = time.time()
         audio = text_to_speech(answer)
         tts_time = time.time() - tts_start
-        yield gr.update(value=query), gr.update(value=answer), gr.update(value=audio)
+        yield gr.update(value=query), gr.update(value=answer), gr.update(value=audio, autoplay=True)
         mlflow.log_metric("tts_time", tts_time)
 
         mlflow.log_param("reasoning", reason)
