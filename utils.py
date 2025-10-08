@@ -13,8 +13,8 @@ embedding_model = HuggingFaceEmbeddings(
 
 #embedding_model = OllamaEmbeddings(model="nomic-embed-text")
 
-#model_name = "qwen3:0.6b"
-evalmodel_name = "phi3:medium"
+model_name = "qwen3:4b"
+evalmodel_name = "qwen3:8b"
 
 local_llm = OllamaLLM(model=model_name, temperature=0.7) 
 

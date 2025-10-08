@@ -2,7 +2,7 @@ import re
 import pyttsx3
 
 def strip_reasoning(text):
-    return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+    return re.sub(r".*?</think>", "", text, flags=re.DOTALL).strip()
 
 def text_to_speech(text, output_path="answer.mp3"):
     engine = pyttsx3.init()
