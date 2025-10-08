@@ -53,8 +53,8 @@ def transcribe_and_rag(audio_path):
                 "prompt": PromptTemplate(
                     template=(
                         "You are a helpful assistant. Using ONLY the information in the context, "
-                        "answer the question completely but briefly. "
-                        "Do not include your reasoning or any extra text.\n\n"
+                        "answer the question in a full sentence."
+                        "Do not include your reasoning.\n\n"
                         "Use ONLY the following context to answer. If the answer is not present, respond 'I don't know'."
                         "Context:\n{context}\n\nQuestion: {question}\nAnswer:"
                     ),
