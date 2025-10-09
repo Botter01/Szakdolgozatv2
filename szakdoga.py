@@ -1,4 +1,4 @@
-from helper_functions import strip_reasoning, text_to_speech
+from helper_functions import strip_reasoning, pytts_tts
 from ui_components import audio_input, transcript_output, rag_output, tts_output, interface_title
 from utils import *
 import time
@@ -78,7 +78,7 @@ def transcribe_and_rag(audio_path):
         simplified_sources = [{"id": doc.id, "title": doc.metadata.get("title")} for doc in sources]
 
         tts_start = time.time()
-        audio = text_to_speech(answer)
+        audio = pytts_tts(answer)
         tts_time = time.time() - tts_start
         yield gr.update(value=query), gr.update(value=answer), gr.update(value=audio, autoplay=True)
         mlflow.log_metric("tts_time", tts_time)
@@ -96,7 +96,7 @@ def transcribe_and_rag(audio_path):
     return f"Leiratozott kérdés:\n{query}", f"Generált válasz:\n{answer}", audio
 
 with gr.Blocks() as ui:
-    gr.Markdown("<u><h1 style='text-align: center;'>Whisper + RAG + TTS demo</h1></u>")
+    gr.Markdown(f"<u><h1 style='text-align: center;'>{interface_title}</h1></u>")
     audio_input.render()
     transcript_output.render()
     rag_output.render()

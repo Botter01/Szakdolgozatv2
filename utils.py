@@ -13,6 +13,8 @@ embedding_model = HuggingFaceEmbeddings(
 
 #embedding_model = OllamaEmbeddings(model="nomic-embed-text")
 
+#fastmodel_name = "qwen3:0.6b"
+
 model_name = "qwen3:4b"
 evalmodel_name = "qwen3:8b"
 
