@@ -1,6 +1,6 @@
-from ui_components import *
-from utils import *
-from tts import *
+from ui_components_module import *
+from utils_module import *
+from tts_module import *
 import time
 import gradio as gr
 import mlflow
@@ -15,6 +15,7 @@ def transcribe(audio_path, whisper_model):
     duration = time.time() - start
     mlflow.log_metric("whisper_time", duration)
     query = result["text"]
+
     return query
 
 def build_retriever(query, embedding_model, text_splitter):
@@ -88,7 +89,7 @@ def transcribe_and_rag(audio_path):
         answer = generate_answer(query, retriever, local_llm, model_name)
         yield gr.update(value=query), gr.update(value=answer), None
 
-        audio_path = pytts_tts(answer)
+        audio_path = pytts_tts(answer, "voice_files/pytts_answer.mp3")
         total_time = time.time() - total_start
         mlflow.log_metric("total_time", total_time)
 

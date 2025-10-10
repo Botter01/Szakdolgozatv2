@@ -5,6 +5,9 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_ollama import OllamaLLM
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
+#fastmodel_name = "qwen3:0.6b"
+model_name = "qwen3:4b"
+evalmodel_name = "qwen3:8b"
 whisper_model = whisper.load_model("small")
 
 embedding_model = HuggingFaceEmbeddings(
@@ -13,11 +16,6 @@ embedding_model = HuggingFaceEmbeddings(
 )
 
 #embedding_model = OllamaEmbeddings(model="nomic-embed-text")
-
-#fastmodel_name = "qwen3:0.6b"
-
-model_name = "qwen3:4b"
-evalmodel_name = "qwen3:8b"
 
 local_llm = OllamaLLM(model=model_name, temperature=0.7) 
 
