@@ -1,4 +1,5 @@
 import whisper
+import re
 from langchain_community.embeddings import OllamaEmbeddings
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_ollama import OllamaLLM
@@ -23,3 +24,6 @@ local_llm = OllamaLLM(model=model_name, temperature=0.7)
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=2500, chunk_overlap=50, separators=["\n\n", "\n", ".", " "]
 )
+
+def strip_reasoning(text):
+    return re.sub(r".*?</think>", "", text, flags=re.DOTALL).strip()

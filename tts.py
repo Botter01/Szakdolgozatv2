@@ -1,8 +1,15 @@
 import subprocess
 import os
 from pydub import AudioSegment
+import pyttsx3
 
 #AudioSegment.from_mp3("XTTS_sample.mp3").export("XTTS_sample.wav", format="wav") MP3 -> WAV
+
+def pytts_tts(text, output_path="answer.mp3"):
+    engine = pyttsx3.init()
+    engine.save_to_file(text, output_path)
+    engine.runAndWait()
+    return output_path
 
 def xtts_tts(text, voice_sample, output_path="xtts_output.wav"):
 
