@@ -3,11 +3,12 @@ from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import LLMContextRecall, Faithfulness, FactualCorrectness
 from jiwer import wer
 import librosa 
-import pystoi
+from pystoi import stoi
 from tts_module import *
 from utils_module import whisper_model
 from szakdoga import transcribe
 import pandas as pd
+import numpy as np
 
 eval_dataset_rag = []
 
@@ -42,35 +43,84 @@ expected_responses = [
 evaluation_dataset = EvaluationDataset.from_list(eval_dataset_rag)
 
 eval_dataset_tts_stt = [
-    "The pharmaceutical industry has undergone significant transformations over the past decade with the emergence of personalized medicine, biotechnology innovations, and the integration of artificial intelligence in drug discovery processes, which have accelerated the development of novel therapeutics and improved patient outcomes through tailored treatment strategies.",
-    "Contemporary architecture and urban planning professionals are increasingly incorporating sustainable design principles such as green building certifications, passive solar heating systems, rainwater harvesting technologies, and permeable pavements to minimize environmental impact while simultaneously enhancing the quality of life for residents.",
-    "Quantum computing represents a paradigm shift in computational technology with its potential to solve previously intractable problems in cryptography, optimization, drug simulation, and artificial intelligence through the manipulation of quantum mechanical phenomena such as superposition and entanglement, thereby enabling exponential increases."
+    "The pharmaceutical industry has undergone significant transformations with the emergence of personalized medicine, biotechnology innovations, and artificial intelligence in drug discovery processes.",
+    "Contemporary architecture and urban planning professionals are increasingly incorporating sustainable design principles such as green building certifications and rainwater harvesting technologies.",
+    "Quantum computing represents a paradigm shift in computational technology with its potential to solve problems in cryptography, optimization, and artificial intelligence through quantum mechanical phenomena."
 ]
 
-pytts_results = []
-xtts_results = []
-pytts_transcribe_results = []
-xtts_transcribe_results = []
+def wer_score(eval_dataset_tts_stt, excel_path='evaluation_results/tts_eval.xlsx'):
+    pytts_results = []
+    xtts_results = []
+    pytts_transcribe_results = []
+    xtts_transcribe_results = []
 
-for i, text in enumerate(eval_dataset_tts_stt):
-    pytts_results.append(pytts_tts(text, f"voice_files/pytts_answer_{i}.mp3"))
-    xtts_results.append(xtts_tts(text, "XTTS_Boti_sample.wav", f"xtts_answer_{i}.wav"))
+    for i, text in enumerate(eval_dataset_tts_stt):
+        pytts_results.append(pytts_tts(text, f"voice_files/pytts_answer_{i}.mp3"))
+        xtts_results.append(xtts_tts(text, "XTTS_Boti_sample.wav", f"xtts_answer_{i}.wav"))
 
-for pytts, xtts in zip(pytts_results, xtts_results):
-    pytts_transcribe_results.append(transcribe(pytts, whisper_model))
-    xtts_transcribe_results.append(transcribe(xtts, whisper_model))
+    for pytts, xtts in zip(pytts_results, xtts_results):
+        pytts_transcribe_results.append(transcribe(pytts, whisper_model))
+        xtts_transcribe_results.append(transcribe(xtts, whisper_model))
 
-wer_results = []
+    wer_results = []
 
-for eval, pytts, xtts in zip(eval_dataset_tts_stt, pytts_transcribe_results, xtts_transcribe_results):
-    pytts_wer = wer(eval, pytts)
-    xtts_wer = wer(eval, xtts)
-    wer_results.append({
-        'PyTTS Transcription': pytts,
-        'PyTTS WER': pytts_wer,
-        'XTTS Transcription': xtts,
-        'XTTS WER': xtts_wer
-    })
+    for eval, pytts, xtts in zip(eval_dataset_tts_stt, pytts_transcribe_results, xtts_transcribe_results):
+        pytts_wer = wer(eval, pytts)
+        xtts_wer = wer(eval, xtts)
+        wer_results.append({
+            'PyTTS Transcription': pytts,
+            'PyTTS WER': pytts_wer,
+            'XTTS Transcription': xtts,
+            'XTTS WER': xtts_wer
+        })
 
-df = pd.DataFrame(wer_results)
-df.to_excel('evaluation_results/tts_eval.xlsx', index=False, sheet_name='WER Results')
+    df = pd.DataFrame(wer_results)
+    df.to_excel(excel_path, index=False, sheet_name='WER Results')
+
+def stoi_score(sr=16000, excel_path='evaluation_results/tts_eval.xlsx'):
+    pytts_voice = [
+        "voice_files/pytts_answer_0.mp3",
+        "voice_files/pytts_answer_1.mp3",
+        "voice_files/pytts_answer_2.mp3"
+    ]
+    xtts_voice = [
+        "voice_files/xtts_answer_0.wav",
+        "voice_files/xtts_answer_1.wav",
+        "voice_files/xtts_answer_2.wav"
+    ]
+    ref_voice = [
+        "voice_files/bio.mp3",
+        "voice_files/arch.mp3",
+        "voice_files/quantum.mp3"
+    ]
+
+    results = []
+
+    for ref_path, pytts_path, xtts_path in zip(ref_voice, pytts_voice, xtts_voice):
+
+        ref, _ = librosa.load(ref_path, sr=sr, mono=True)
+        pytts, _ = librosa.load(pytts_path, sr=sr, mono=True)
+        xtts, _ = librosa.load(xtts_path, sr=sr, mono=True)
+
+        min_len = min(len(ref), len(pytts))
+        ref_pytts_ref, pytts_ref = ref[:min_len], pytts[:min_len]
+        min_len = min(len(ref), len(xtts))
+        ref_xtts_ref, xtts_ref = ref[:min_len], xtts[:min_len]
+
+        stoi_pytts = stoi(ref_pytts_ref, pytts_ref, sr, extended=False)
+        stoi_xtts = stoi(ref_xtts_ref, xtts_ref, sr, extended=False)
+
+        results.append({
+            "Reference file": ref_path,
+            "PyTTS file": pytts_path,
+            "PyTTS STOI": stoi_pytts,
+            "XTTS file": xtts_path,
+            "XTTS STOI": stoi_xtts
+        })
+
+    df = pd.DataFrame(results)
+    with pd.ExcelWriter(excel_path, engine='openpyxl', mode='a') as writer:
+        df.to_excel(writer, index=False, sheet_name='STOI Results')
+
+wer_score(eval_dataset_tts_stt)
+stoi_score()
