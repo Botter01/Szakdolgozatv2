@@ -1,11 +1,13 @@
 import whisper
 import re
 from langchain_community.embeddings import OllamaEmbeddings
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_ollama import OllamaLLM
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from sentence_transformers import CrossEncoder
 
 #fastmodel_name = "qwen3:0.6b"
+querymodel_name = "phi3:medium"
 model_name = "qwen3:4b"
 evalmodel_name = "qwen3:8b"
 whisper_model = whisper.load_model("small")
@@ -17,11 +19,14 @@ embedding_model = HuggingFaceEmbeddings(
 
 #embedding_model = OllamaEmbeddings(model="nomic-embed-text")
 
-local_llm = OllamaLLM(model=model_name, temperature=0.7) 
+local_llm = OllamaLLM(model=model_name, temperature=0.7)
+query_model = OllamaLLM(model=querymodel_name)
 
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=2500, chunk_overlap=50, separators=["\n\n", "\n", ".", " "]
 )
+
+reranker = CrossEncoder("BAAI/bge-reranker-large")
 
 def strip_reasoning(text):
     return re.sub(r".*?</think>", "", text, flags=re.DOTALL).strip()

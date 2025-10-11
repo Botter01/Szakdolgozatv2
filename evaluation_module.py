@@ -162,5 +162,5 @@ def pesq_score(sr=16000, excel_path='evaluation_results/tts_eval.xlsx'):
     with pd.ExcelWriter(excel_path, engine='openpyxl', mode='a') as writer:
         df.to_excel(writer, index=False, sheet_name='PESQ Results')
 
-#wer_score(eval_dataset_tts_stt)
+wer_score(eval_dataset_tts_stt)
 pesq_score()
