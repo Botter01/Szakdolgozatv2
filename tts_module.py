@@ -1,9 +1,12 @@
 import subprocess
 import os
-from pydub import AudioSegment
 import pyttsx3
+import librosa
+import soundfile as sf
 
-#AudioSegment.from_mp3("XTTS_sample.mp3").export("XTTS_sample.wav", format="wav") MP3 -> WAV
+#MP3 -> WAV
+#y, sr = librosa.load("voice_files/pytts_answer_1.mp3", sr=16000, mono=True)
+#sf.write("voice_files/pytts_answer_1.wav", y, sr)
 
 def pytts_tts(text, output_path):
     engine = pyttsx3.init()

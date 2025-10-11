@@ -4177,6 +4177,17 @@ files = [
 ]
 
 [[package]]
+name = "pesq"
+version = "0.0.4"
+description = "Python Wrapper for PESQ Score (narrow band and wide band)"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "pesq-0.0.4.tar.gz", hash = "sha256:b724b28f73fb638522982bd68e8c3c0957e2f45210639a460233b17aa7fc890b"},
+]
+
+[[package]]
 name = "pillow"
 version = "11.3.0"
 description = "Python Imaging Library (Fork)"
@@ -10800,4 +10811,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4.0"
-content-hash = "76939477e5f095e1586862f626b843a495e96c4d036b6ca9db1972bb905dad89"
+content-hash = "6aef02dd5fa39eeb73ce23112e51e76f1ae86d8914e20f3cc2a9c717ea4b1b14"
