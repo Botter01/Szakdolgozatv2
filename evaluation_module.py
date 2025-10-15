@@ -78,51 +78,6 @@ def wer_score(eval_dataset_tts_stt, excel_path='evaluation_results/tts_eval.xlsx
     df = pd.DataFrame(wer_results)
     df.to_excel(excel_path, index=False, sheet_name='WER Results')
 
-def stoi_score(sr=16000, excel_path='evaluation_results/tts_eval.xlsx'):
-    pytts_voice = [
-        "voice_files/pytts_answer_0.wav",
-        "voice_files/pytts_answer_1.wav",
-        "voice_files/pytts_answer_2.wav"
-    ]
-    xtts_voice = [
-        "voice_files/xtts_answer_0.wav",
-        "voice_files/xtts_answer_1.wav",
-        "voice_files/xtts_answer_2.wav"
-    ]
-    ref_voice = [
-        "voice_files/bio.wav",
-        "voice_files/arch.wav",
-        "voice_files/quantum.wav"
-    ]
-
-    results = []
-
-    for ref_path, pytts_path, xtts_path in zip(ref_voice, pytts_voice, xtts_voice):
-
-        ref, _ = librosa.load(ref_path, sr=sr, mono=True)
-        pytts, _ = librosa.load(pytts_path, sr=sr, mono=True)
-        xtts, _ = librosa.load(xtts_path, sr=sr, mono=True)
-
-        min_len = min(len(ref), len(pytts))
-        ref_pytts_ref, pytts_ref = ref[:min_len], pytts[:min_len]
-        min_len = min(len(ref), len(xtts))
-        ref_xtts_ref, xtts_ref = ref[:min_len], xtts[:min_len]
-
-        stoi_pytts = stoi(ref_pytts_ref, pytts_ref, sr, extended=False)
-        stoi_xtts = stoi(ref_xtts_ref, xtts_ref, sr, extended=False)
-
-        results.append({
-            "Reference file": ref_path,
-            "PyTTS file": pytts_path,
-            "PyTTS STOI": stoi_pytts,
-            "XTTS file": xtts_path,
-            "XTTS STOI": stoi_xtts
-        })
-
-    df = pd.DataFrame(results)
-    with pd.ExcelWriter(excel_path, engine='openpyxl', mode='a') as writer:
-        df.to_excel(writer, index=False, sheet_name='STOI Results')
-
 def pesq_score(sr=16000, excel_path='evaluation_results/tts_eval.xlsx'):
     pytts_voice = [
         "voice_files/pytts_answer_0.wav",
