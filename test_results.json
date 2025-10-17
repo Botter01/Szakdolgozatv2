@@ -1,0 +1,158 @@
+[
+  {
+    "topic": "Hungarian cuisine",
+    "question": "What makes Hungarian cuisine the spiciest in Europe?",
+    "expected": "The use of Hungarian paprika.",
+    "answer": "Hungarian cuisine is considered the spiciest in Europe due to the extensive use of its native spice, Hungarian paprika, which is characterized by its bright color and distinct heat, setting it apart from milder variations of paprika found elsewhere."
+  },
+  {
+    "topic": "Hungarian cuisine",
+    "question": "What are the primary ingredients in traditional Hungarian dishes?",
+    "expected": "Meats, seasonal vegetables, fruits, bread, and dairy products.",
+    "answer": "The primary ingredients in traditional Hungarian dishes are meats, seasonal vegetables, fruits, bread, and dairy products."
+  },
+  {
+    "topic": "Hungarian cuisine",
+    "question": "Which country is paprika most commonly associated with?",
+    "expected": "Hungary",
+    "answer": "Paprika is most commonly associated with Hungary."
+  },
+  {
+    "topic": "Hungarian cuisine",
+    "question": "What is the most important part of the Hungarian diet?",
+    "expected": "Bread",
+    "answer": "The most important part of the Hungarian diet is bread."
+  },
+  {
+    "topic": "Hungarian cuisine",
+    "question": "Do main dishes in Hungary typically require a side dish?",
+    "expected": "Yes, it is unusual to violate this convention.",
+    "answer": "Main dishes in Hungary typically require a side dish, as it is unusual to violate this convention."
+  },
+  {
+    "topic": "Hungarian cuisine",
+    "question": "What is a common side dish for csirkepaprikás?",
+    "expected": "Small dumplings similar to gnocchi (nokedli).",
+    "answer": "A common side dish for csirkepaprikás is small dumplings similar to gnocchi, known as nokedli."
+  },
+  {
+    "topic": "Hungarian cuisine",
+    "question": "Which two rivers have different regional variations of fisherman's soup?",
+    "expected": "Danube and Tisza",
+    "answer": "The two rivers with different regional variations of fisherman's soup are the Danube and the Tisza."
+  },
+  {
+    "topic": "Hungarian cuisine",
+    "question": "What ingredients are in palacsinta according to the text?",
+    "expected": "Dark chocolate sauce and ground walnuts",
+    "answer": "According to the text, palacsinta are pancakes served flambéed in dark chocolate sauce filled with ground walnuts."
+  },
+  {
+    "topic": "Budapest history",
+    "question": "When was Budapest officially created?",
+    "expected": "17 November 1873",
+    "answer": "Budapest was officially created on 17 November 1873 from a merger of the three neighboring cities of Pest, Buda, and Óbuda."
+  },
+  {
+    "topic": "Budapest history",
+    "question": "Which cities merged to form Budapest?",
+    "expected": "Pest, Buda, and Óbuda",
+    "answer": "The cities of Pest, Buda, and Óbuda merged to form Budapest."
+  },
+  {
+    "topic": "Budapest history",
+    "question": "What was the name of the city that retained the Celtic name after the Romans occupied the area?",
+    "expected": "Aquincum",
+    "answer": "The city that retained the Celtic name after the Romans occupied the area was Aquincum."
+  },
+  {
+    "topic": "Budapest history",
+    "question": "When did the city become the capital of the Roman province of Pannonia Inferior?",
+    "expected": "AD 106",
+    "answer": "The city became the capital of the Roman province of Pannonia Inferior in AD 106."
+  },
+  {
+    "topic": "Budapest history",
+    "question": "Which group succeeded the Romans in the Hungarian plains?",
+    "expected": "The Huns",
+    "answer": "The group that succeeded the Romans in the Hungarian plains was the Huns."
+  },
+  {
+    "topic": "Budapest history",
+    "question": "When did the Avar Khaganate dominate Pannonia?",
+    "expected": "Between the 6th and 9th centuries",
+    "answer": "The Avar Khaganate dominated Pannonia between the 6th and 9th centuries."
+  },
+  {
+    "topic": "Budapest history",
+    "question": "What caused the economic development of Buda and Pest in the 12th century?",
+    "expected": "French, Walloon, and German settlers migrated there and worked and traded under royal protection.",
+    "answer": "The economic development of Buda and Pest in the 12th century was caused by the migration of French, Walloon, and German settlers who worked and traded under royal protection along the banks of the Danube."
+  },
+  {
+    "topic": "Budapest history",
+    "question": "Why was Buda renamed 'Ofen' by German colonists?",
+    "expected": "After its numerous lime kilns.",
+    "answer": "Buda was renamed 'Ofen' by German colonists because the area had numerous lime kilns, and the name 'Ofen' means 'furnace' in English."
+  },
+  {
+    "topic": "Budapest history",
+    "question": "Which 14th-century dynasty established Buda as the royal seat?",
+    "expected": "The Angevin kings of Hungary.",
+    "answer": "The Angevin dynasty established Buda as the royal seat during the 14th century."
+  },
+  {
+    "topic": "Budapest history",
+    "question": "During which period did Matthias Corvinus rule Hungary?",
+    "expected": "From 1458 to 1490.",
+    "answer": "Matthias Corvinus ruled Hungary during the Renaissance period."
+  },
+  {
+    "topic": "Lake Balaton",
+    "question": "What is Lake Balaton's status in Central Europe?",
+    "expected": "the largest lake",
+    "answer": "Lake Balaton is the largest lake in Central Europe and one of the region's foremost tourist destinations."
+  },
+  {
+    "topic": "Lake Balaton",
+    "question": "What is the largest inflow to Lake Balaton?",
+    "expected": "the Zala River",
+    "answer": "The largest inflow to Lake Balaton is the Zala River."
+  },
+  {
+    "topic": "Lake Balaton",
+    "question": "What makes Lake Balaton's Hungarian name unique compared to other lakes?",
+    "expected": "It uses a definite article ('a Balaton') instead of the suffix -tó.",
+    "answer": "Lake Balaton's Hungarian name is unique because it is referred to with a definite article (\"a Balaton\") instead of the common suffix -tó used for other Hungarian lake names."
+  },
+  {
+    "topic": "Lake Balaton",
+    "question": "What does the origin of Lake Balaton's name mean in Slavic languages?",
+    "expected": "It derives from *bolto, meaning 'mud, swamp'.",
+    "answer": "The origin of Lake Balaton's name in Slavic languages is derived from the Slavic *bolto, meaning 'mud, swamp,' as reflected in words like Czech bláto, Slovak blato, and Polish błoto."
+  },
+  {
+    "topic": "Lake Balaton",
+    "question": "How does Lake Balaton affect precipitation in the local area?",
+    "expected": "It increases precipitation by 5–7 cm (2–3 in) compared to most of Hungary.",
+    "answer": "Lake Balaton increases precipitation in the local area by approximately 5–7 cm (2–3 in) compared to most of Hungary."
+  },
+  {
+    "topic": "Lake Balaton",
+    "question": "What factors contribute to the region's suitability for viticulture?",
+    "expected": "Mediterranean-like climate and volcanic soil.",
+    "answer": "The region's suitability for viticulture is contributed to by the Mediterranean-like climate and the soil containing volcanic rock."
+  },
+  {
+    "topic": "Lake Balaton",
+    "question": "When did Lake Balaton become a significant location during the Ottoman wars?",
+    "expected": "During the Ottoman wars.",
+    "answer": "I don't know."
+  },
+  {
+    "topic": "Lake Balaton",
+    "question": "When was Hungary's first biological research institute established?",
+    "expected": "In 1927.",
+    "answer": "Hungary's first biological research institute was established on the shore of Lake Balaton in 1927."
+  }
+]

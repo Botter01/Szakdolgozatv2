@@ -44,25 +44,25 @@ def query_rewriting(query, llm):
 def build_retriever(query, embedding_model, text_splitter):
     load_start = time.time()
 
-    loader = WikipediaLoader(query=query, lang="en", load_max_docs=7)
+    loader = WikipediaLoader(query=query, lang="en", load_max_docs=1)
     raw_docs = loader.load()
 
     docs = text_splitter.split_documents(raw_docs)
     original_sources = [{"id": doc.id, "title": doc.metadata.get("title")} for doc in docs]
 
-    mlflow.log_param("original_sources", original_sources)
-    mlflow.log_param("chunk_size", 2500)
-    mlflow.log_param("num_chunks", len(docs))
-    mlflow.log_param("load_max_docs", 7)
-    mlflow.log_metric("load_time", time.time() - load_start)
+    #mlflow.log_param("original_sources", original_sources)
+    #mlflow.log_param("chunk_size", 1000)
+    #mlflow.log_param("num_chunks", len(docs))
+    #mlflow.log_param("load_max_docs", 3)
+    #mlflow.log_metric("load_time", time.time() - load_start)
 
     embed_start = time.time()
     vectorstore = FAISS.from_documents(docs, embedding_model)
-    mlflow.log_metric("embedding_time", time.time() - embed_start)
+    #mlflow.log_metric("embedding_time", time.time() - embed_start)
 
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
-    mlflow.log_param("retriever_k", 5)
-    mlflow.log_param("search_type", "similarity")
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+    #mlflow.log_param("retriever_k", 4)
+    #mlflow.log_param("search_type", "similarity")
 
     return retriever, docs
 
@@ -73,14 +73,14 @@ def rerank_docs(query, docs):
     pairs = [[query, doc.page_content] for doc in docs]
     scores = reranker.predict(pairs)
     ranked = sorted(zip(docs, scores), key=lambda x: x[1], reverse=True)
-    reranked_docs = [doc for doc, _ in ranked[:5]]
+    reranked_docs = [doc for doc, _ in ranked[:4]]
 
     duration = time.time() - start
     avg_score = float(sum(scores) / len(scores)) if len(scores) > 0 else 0
 
-    mlflow.log_metric("rerank_time", duration)
-    mlflow.log_metric("rerank_avg_score", avg_score)
-    mlflow.log_param("rerank_top_k", 5)
+    #mlflow.log_metric("rerank_time", duration)
+    #mlflow.log_metric("rerank_avg_score", avg_score)
+    #mlflow.log_param("rerank_top_k", 4)
     print("Rerankbanban végeztem\n")
 
     return reranked_docs
@@ -103,15 +103,15 @@ def generate_answer(query, reranked_docs, llm, model_name):
     
     chain = prompt | llm
     response = chain.invoke({"context": context, "question": query})
-    mlflow.log_metric("llm_time", time.time() - start)
-    mlflow.log_param("model_name", model_name)
+    #mlflow.log_metric("llm_time", time.time() - start)
+    #mlflow.log_param("model_name", model_name)
 
     answer = strip_reasoning(response)
     simplified_sources = [{"id": doc.id, "title": doc.metadata.get("title")} for doc in reranked_docs]
 
-    mlflow.log_param("reranked_sources", simplified_sources)
-    mlflow.log_param("reasoning", response)
-    mlflow.log_metric("answer_length", len(answer))
+    #mlflow.log_param("reranked_sources", simplified_sources)
+    #mlflow.log_param("reasoning", response)
+    #mlflow.log_metric("answer_length", len(answer))
 
     return answer
 
@@ -160,7 +160,7 @@ def transcribe_and_rag(audio_path):
         reranked_docs = rerank_docs(rewritten_query, docs)
         mlflow.log_metric("num_docs_reranked", len(reranked_docs))
 
-        answer = generate_answer(rewritten_query, reranked_docs, local_llm, model_name)
+        answer = generate_answer(rewritten_query, reranked_docs, local_llm, generation_model)
         yield gr.update(value=rewritten_query), gr.update(value=answer), None
 
         verification = fact_check(answer, reranked_docs, local_llm)
