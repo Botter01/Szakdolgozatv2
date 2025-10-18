@@ -6,11 +6,12 @@ import gradio as gr
 import mlflow
 from langchain_community.document_loaders import WikipediaLoader
 from langchain_community.vectorstores import FAISS
+from langchain.retrievers import BM25Retriever
 from langchain.prompts import PromptTemplate
-from langchain.chains import RetrievalQA, LLMChain
 
 def transcribe(audio_path, whisper_model):
     start = time.time()
+
     result = whisper_model.transcribe(audio_path, language="en")
     duration = time.time() - start
     mlflow.log_metric("whisper_time", duration)
@@ -19,8 +20,8 @@ def transcribe(audio_path, whisper_model):
     return query
 
 def query_rewriting(query, llm):
-    print("Query rewritingban vagyok\n")
     start = time.time()
+
     prompt = PromptTemplate(
         template=(
             "You are a query optimizer for a retrieval system.\n"
@@ -38,7 +39,6 @@ def query_rewriting(query, llm):
     mlflow.log_param("rewrite_input", query)
     mlflow.log_param("rewrite_output", rewritten_query)
 
-    print("Query rewritingban végeztem\n")    
     return rewritten_query
 
 def multi_query(query, llm, variant_number):
@@ -47,7 +47,7 @@ def multi_query(query, llm, variant_number):
         "Generate {n} different paraphrases of the following query.\n"
         "Each should be clear, factual, and optimized for Wikipedia search.\n\n"
         "Original query: \"{query}\"\n\n"
-        "Paraphrases (one per line):"
+        "Paraphrases (one per line, and don't use numbering):"
         ),
         input_variables=["n", "query"]
     )
@@ -55,71 +55,73 @@ def multi_query(query, llm, variant_number):
     formatted_prompt = prompt.format(n=variant_number, query=query)
     response = llm.invoke(formatted_prompt).strip()
     variants = [q.strip("-•1234567890. ") for q in response.split("\n") if q.strip()]
+
     return [query] + variants[:variant_number]
 
-def build_faiss_retriever(query, embedding_model, text_splitter, top_k=4):
+def faiss_retriever(query, embedding_model, text_splitter, top_k=4, n_docs=3):
     load_start = time.time()
 
-    loader = WikipediaLoader(query=query, lang="en", load_max_docs=1)
-    raw_docs = loader.load()
+    loader = WikipediaLoader(query=query, lang="en", load_max_docs=n_docs)
+    wiki_docs = loader.load()
 
-    docs = text_splitter.split_documents(raw_docs)
-    original_sources = [{"id": doc.id, "title": doc.metadata.get("title")} for doc in docs]
+    wiki_chuncks = text_splitter.split_documents(wiki_docs)
+    original_sources = [{"id": wiki_chunck.id, "title": wiki_chunck.metadata.get("title")} for wiki_chunck in wiki_chuncks]
 
     #mlflow.log_param("original_sources", original_sources)
     #mlflow.log_param("chunk_size", 1000)
-    #mlflow.log_param("num_chunks", len(docs))
-    #mlflow.log_param("load_max_docs", 3)
+    #mlflow.log_param("num_chunks", len(wiki_chuncks))
+    #mlflow.log_param("load_max_docs", n_docs)
     #mlflow.log_metric("load_time", time.time() - load_start)
 
     embed_start = time.time()
-    vectorstore = FAISS.from_documents(docs, embedding_model)
+    vectorstore = FAISS.from_documents(wiki_chuncks, embedding_model)
     #mlflow.log_metric("embedding_time", time.time() - embed_start)
 
     retriever = vectorstore.as_retriever(search_kwargs={"k": top_k})
+    retrieved_chuncks = retriever.get_relevant_documents(query)
     #mlflow.log_param("retriever_k", top_k)
-    #mlflow.log_param("search_type", "similarity")
 
-    return retriever, docs
+    return retrieved_chuncks
 
-def build_bm25_retriever(query, text_splitter):
-    loader = WikipediaLoader(query=query, lang="en", load_max_docs=1)
+def bm25_retriever(query, text_splitter, top_k=4, n_docs=3):
+    loader = WikipediaLoader(query=query, lang="en", load_max_docs=n_docs)
     raw_docs = loader.load()
 
-    docs = text_splitter.split_documents(raw_docs)
-    retriever = BM25Retriever.from_documents(docs)
+    wiki_chuncks = text_splitter.split_documents(raw_docs)
+    retriever = BM25Retriever.from_documents(wiki_chuncks)
+    retriever.k = top_k
+    retrieved_chuncks = retriever.get_relevant_documents(query)
 
-    return retriever, docs
+    return retrieved_chuncks
 
-def build_hybrid_retriever(query, bm25_ret, faiss_ret, top_k=4):
-    bm25_docs = bm25_ret.get_relevant_documents(query)
-    faiss_docs = faiss_ret.get_relevant_documents(query)
+def hybrid_retriever(query, embedding_model, text_splitter, top_k=4, n_docs=3):
+    bm25_chuncks = bm25_retriever(query, text_splitter, top_k, n_docs)
+    faiss_chuncks = faiss_retriever(query, embedding_model, text_splitter, top_k, n_docs)
 
-    all_docs = list({d.page_content: d for d in bm25_docs + faiss_docs}.values())
+    all_chuncks = list({chunck.page_content: chunck for chunck in bm25_chuncks + faiss_chuncks}.values())
 
-    reranked = rerank_docs(query, all_docs)
-    return reranked[:top_k]
+    reranked_chuncks = rerank_chuncks(query, all_chuncks)
+    return reranked_chuncks[:top_k]
 
-def rerank_docs(query, docs):
-    print("Rerankbanban vagyok\n")
+def rerank_chuncks(query, chuncks):
+
     start = time.time()
 
-    pairs = [[query, doc.page_content] for doc in docs]
+    pairs = [[query, chunck.page_content] for chunck in chuncks]
     scores = reranker.predict(pairs)
-    ranked = sorted(zip(docs, scores), key=lambda x: x[1], reverse=True)
-    reranked_docs = [doc for doc, _ in ranked[:4]]
+    ranked = sorted(zip(chuncks, scores), key=lambda x: x[1], reverse=True)
+    reranked_chuncks = [chunck for chunck, _ in ranked[:4]]
 
     duration = time.time() - start
     avg_score = float(sum(scores) / len(scores)) if len(scores) > 0 else 0
 
     #mlflow.log_metric("rerank_time", duration)
     #mlflow.log_metric("rerank_avg_score", avg_score)
-    #mlflow.log_param("rerank_top_k", 4)
-    print("Rerankbanban végeztem\n")
 
-    return reranked_docs
+    return reranked_chuncks
 
-def generate_answer(query, reranked_docs, llm, model_name):
+def generate_answer(query, reranked_chuncks, llm, model_name):
+
     start = time.time()
     prompt = PromptTemplate(
         template=(
@@ -133,7 +135,7 @@ def generate_answer(query, reranked_docs, llm, model_name):
         input_variables=["question", "context"],
     )
 
-    context = "\n\n".join([doc.page_content for doc in reranked_docs])
+    context = "\n\n".join([chunck.page_content for chunck in reranked_chuncks])
     
     chain = prompt | llm
     response = chain.invoke({"context": context, "question": query})
@@ -141,17 +143,16 @@ def generate_answer(query, reranked_docs, llm, model_name):
     #mlflow.log_param("model_name", model_name)
 
     answer = strip_reasoning(response)
-    simplified_sources = [{"id": doc.id, "title": doc.metadata.get("title")} for doc in reranked_docs]
-
-    #mlflow.log_param("reranked_sources", simplified_sources)
     #mlflow.log_param("reasoning", response)
     #mlflow.log_metric("answer_length", len(answer))
 
     return answer
 
-def fact_check(answer, sources, llm):
+def fact_check(answer, chuncks, llm):
+
     start = time.time()
-    context = "\n\n".join(doc.page_content for doc in sources[:3])
+    context = "\n\n".join(chunck.page_content for chunck in chuncks[:3])
+
     prompt = PromptTemplate(
             template=("""
                 You are a fact-checking assistant.
@@ -190,27 +191,25 @@ def transcribe_and_rag(audio_path, multi_query_toggle: bool):
             all_docs = []
 
             for q in queries:
-                retriever, docs = build_retriever(q, embedding_model, text_splitter)
-                retrieved = retriever.get_relevant_documents(q)
-                all_docs.extend(retrieved)
+                retrieved_chuncks = faiss_retriever(q, embedding_model, text_splitter)
+                all_docs.extend(retrieved_chuncks)
 
             unique_docs = {d.page_content: d for d in all_docs}.values()
 
-            reranked_docs = rerank_docs(query, list(unique_docs))
+            reranked_chuncks = rerank_chuncks(query, list(unique_docs))
 
         rewritten_query = query_rewriting(query, query_model)
         yield gr.update(value=f"Original: {query}\n\nRewritten: {rewritten_query}"), None, None
 
-        _, docs = build_faiss_retriever(query, embedding_model, text_splitter)
-        mlflow.log_metric("num_docs", len(docs))
+        retrieved_chuncks = faiss_retriever(query, embedding_model, text_splitter)
 
-        reranked_docs = rerank_docs(rewritten_query, docs)
-        mlflow.log_metric("num_docs_reranked", len(reranked_docs))
+        reranked_chuncks = rerank_chuncks(rewritten_query, retrieved_chuncks)
+        mlflow.log_metric("num_docs_reranked", len(reranked_chuncks))
 
-        answer = generate_answer(rewritten_query, reranked_docs, local_llm, generationmodel_name)
+        answer = generate_answer(rewritten_query, reranked_chuncks, local_llm, generationmodel_name)
         yield gr.update(value=rewritten_query), gr.update(value=answer), None
 
-        verification = fact_check(answer, reranked_docs, local_llm)
+        verification = fact_check(answer, reranked_chuncks, local_llm)
         mlflow.log_param("fact_check_verdict", verification)
 
         audio_path = pytts_tts(answer, "voice_files/pytts_rag_answer.mp3")

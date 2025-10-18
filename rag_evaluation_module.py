@@ -1,5 +1,5 @@
 from utils_module import embedding_model, text_splitter, generationmodel_name, evalmodel_name, fastmodel_name
-from szakdoga import build_faiss_retriever, rerank_docs, generate_answer
+from szakdoga import *
 from langchain_ollama import OllamaLLM
 from langchain.prompts import PromptTemplate
 import json
@@ -17,16 +17,16 @@ ragas_emb = LangchainEmbeddingsWrapper(embedding_model)
 topics = ["Hungarian cuisine", "Budapest history", "Lake Balaton"]
 all_results = []
 
-def generate_test_dataset_from_docs(docs, llm, max_questions_per_doc=2):
+def generate_test_dataset_from_chuncks(chuncks, llm, max_questions_per_chunck=2):
 
     test_dataset = []
 
-    for i, doc in enumerate(docs):
-        text = doc.page_content.strip()
+    for i, chunck in enumerate(chuncks):
+        text = chunck.page_content.strip()
 
         prompt = PromptTemplate(
             template=("""
-            Based on the following text, write {max_questions_per_doc} English question-answer pairs.
+            Based on the following text, write {max_questions_per_chunck} English question-answer pairs.
             Keep the questions concise and factual, and the answers short and directly supported by the text.
 
             Text:
@@ -41,10 +41,10 @@ def generate_test_dataset_from_docs(docs, llm, max_questions_per_doc=2):
             ]
             """
             ),
-            input_variables=["max_questions_per_doc", "text"],
+            input_variables=["max_questions_per_chunck", "text"],
         )
 
-        formatted_prompt = prompt.format(max_questions_per_doc=max_questions_per_doc, text=text)
+        formatted_prompt = prompt.format(max_questions_per_chunck=max_questions_per_chunck, text=text)
         content = llm.invoke(formatted_prompt).strip()
 
         qa_pairs = json.loads(content)
@@ -56,16 +56,15 @@ def generate_test_dataset_from_docs(docs, llm, max_questions_per_doc=2):
                     "expected": qa["answer"]
                 })
 
-        print(f"Generated {len(qa_pairs)} questions from document {i+1}/{len(docs)}")
+        print(f"Generated {len(qa_pairs)} questions from document {i+1}/{len(chuncks)}")
 
     return test_dataset
 """
 for topic in topics:
 
-    retriever, docs = build_faiss_retriever(topic, embedding_model, text_splitter)
-    print(len(docs))
+    chuncks = faiss_retriever(topic, embedding_model, text_splitter)
 
-    test_dataset = generate_test_dataset_from_docs(docs, generator_llm, max_questions_per_doc=2)
+    test_dataset = generate_test_dataset_from_chuncks(chuncks, generator_llm, max_questions_per_doc=2)
 
     topic_results = []
     for i, item in enumerate(test_dataset):
@@ -73,8 +72,8 @@ for topic in topics:
         expected = item["expected"]
 
         print(f"\n [{topic}] Q{i+1}: {question}")
-        reranked_docs = rerank_docs(question, docs)
-        answer = generate_answer(question, reranked_docs, generator_llm, model_name=generation_model)
+        reranked_chuncks = rerank_chuncks(question, chuncks)
+        answer = generate_answer(question, reranked_chuncks, generator_llm, model_name=generation_model)
 
         topic_results.append({
             "topic": topic,
@@ -101,13 +100,11 @@ def rag_evaluation(json_dataset):
         answer = item.get("answer")
         expected = item.get("expected")
 
-        retriever, docs = build_faiss_retriever(topic, embedding_model, text_splitter)
+        retrieved_chuncks = faiss_retriever(topic, embedding_model, text_splitter)
 
-        retrieved_docs = retriever.get_relevant_documents(question)
+        reranked_chuncks = rerank_chuncks(question, retrieved_chuncks)
 
-        reranked = rerank_docs(question, retrieved_docs)
-
-        contexts = [doc.page_content for doc in reranked]
+        contexts = [chunck.page_content for chunck in reranked_chuncks]
 
         eval_rows.append({
             "user_input": question,  
