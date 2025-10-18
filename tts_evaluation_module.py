@@ -4,7 +4,6 @@ from tts_module import *
 from utils_module import whisper_model
 from szakdoga import transcribe
 import pandas as pd
-import numpy as np
 from pesq import pesq
 
 eval_dataset_tts_stt = [

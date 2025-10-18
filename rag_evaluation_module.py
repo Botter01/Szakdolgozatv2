@@ -1,5 +1,5 @@
 from utils_module import embedding_model, text_splitter, generationmodel_name, evalmodel_name, fastmodel_name
-from szakdoga import build_retriever, rerank_docs, generate_answer
+from szakdoga import build_faiss_retriever, rerank_docs, generate_answer
 from langchain_ollama import OllamaLLM
 from langchain.prompts import PromptTemplate
 import json
@@ -17,7 +17,7 @@ ragas_emb = LangchainEmbeddingsWrapper(embedding_model)
 topics = ["Hungarian cuisine", "Budapest history", "Lake Balaton"]
 all_results = []
 
-def generate_test_dataset_from_docs(docs, llm=None, max_questions_per_doc=2):
+def generate_test_dataset_from_docs(docs, llm, max_questions_per_doc=2):
 
     test_dataset = []
 
@@ -47,9 +47,6 @@ def generate_test_dataset_from_docs(docs, llm=None, max_questions_per_doc=2):
         formatted_prompt = prompt.format(max_questions_per_doc=max_questions_per_doc, text=text)
         content = llm.invoke(formatted_prompt).strip()
 
-        print("🔹 Raw model output:")
-        print(content[:500])
-
         qa_pairs = json.loads(content)
 
         for qa in qa_pairs:
@@ -61,15 +58,14 @@ def generate_test_dataset_from_docs(docs, llm=None, max_questions_per_doc=2):
 
         print(f"Generated {len(qa_pairs)} questions from document {i+1}/{len(docs)}")
 
-    print(f"\n📘 Total of {len(test_dataset)} Q&A pairs generated.")
     return test_dataset
 """
 for topic in topics:
 
-    retriever, docs = build_retriever(topic, embedding_model, text_splitter)
+    retriever, docs = build_faiss_retriever(topic, embedding_model, text_splitter)
     print(len(docs))
 
-    test_dataset = generate_test_dataset_from_docs(docs, llm=generator_llm, max_questions_per_doc=2)
+    test_dataset = generate_test_dataset_from_docs(docs, generator_llm, max_questions_per_doc=2)
 
     topic_results = []
     for i, item in enumerate(test_dataset):
@@ -78,7 +74,7 @@ for topic in topics:
 
         print(f"\n [{topic}] Q{i+1}: {question}")
         reranked_docs = rerank_docs(question, docs)
-        answer = generate_answer(question, reranked_docs, llm=generator_llm, model_name=generation_model)
+        answer = generate_answer(question, reranked_docs, generator_llm, model_name=generation_model)
 
         topic_results.append({
             "topic": topic,
@@ -105,7 +101,7 @@ def rag_evaluation(json_dataset):
         answer = item.get("answer")
         expected = item.get("expected")
 
-        retriever, docs = build_retriever(topic, embedding_model, text_splitter)
+        retriever, docs = build_faiss_retriever(topic, embedding_model, text_splitter)
 
         retrieved_docs = retriever.get_relevant_documents(question)
 
