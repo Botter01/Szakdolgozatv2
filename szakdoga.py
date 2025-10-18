@@ -6,7 +6,7 @@ import gradio as gr
 import mlflow
 from langchain_community.document_loaders import WikipediaLoader
 from langchain_community.vectorstores import FAISS
-from langchain.retrievers import BM25Retriever
+from langchain_community.retrievers import BM25Retriever
 from langchain.prompts import PromptTemplate
 
 def transcribe(audio_path, whisper_model):
@@ -173,63 +173,126 @@ def fact_check(answer, chuncks, llm):
     
     formatted_prompt = prompt.format(context=context, answer=answer)
     verification = llm.invoke(formatted_prompt).strip()
+    mlflow.log_param("fact_check_verification_result", verification)
+    verdict = strip_reasoning(verification)
     duration = time.time() - start
 
     mlflow.log_metric("fact_check_time", duration)
 
-    return verification
+    return verdict
 
-def transcribe_and_rag(audio_path, multi_query_toggle: bool):
+def transcribe_and_rag(audio_path, use_query_rewriting, use_multi_query, retriever_choice, use_fact_check, tts_choice, chunk_rerank, query_model=query_model):
     with mlflow.start_run():
         total_start = time.time()
 
         query = transcribe(audio_path, whisper_model)
-        yield gr.update(value=query), None, None
+        yield gr.update(value=f"Transcribed query: {query}"), None, None
 
-        if(multi_query_toggle):
-            queries = multi_query(query, query_model, 3)
-            all_docs = []
+        if (use_query_rewriting):
+            rewritten_query = query_rewriting(query, query_model)
+            query_to_use = rewritten_query
+            yield gr.update(value=f"Original query: {query}\n\nRewritten query: {query_to_use}"), None, None
+        else:
+            query_to_use = query
+        
 
-            for q in queries:
-                retrieved_chuncks = faiss_retriever(q, embedding_model, text_splitter)
-                all_docs.extend(retrieved_chuncks)
+        if (use_multi_query):
+            queries = multi_query(query_to_use, query_model, 3)
+            all_chuncks = []
 
-            unique_docs = {d.page_content: d for d in all_docs}.values()
+            for query in queries:
+                if (retriever_choice == "faiss"):
+                    retrieved_chuncks = faiss_retriever(query, embedding_model, text_splitter)
+                    all_chuncks.extend(retrieved_chuncks)
+                elif (retriever_choice == "bm25"):
+                    retrieved_chuncks = bm25_retriever(query, text_splitter)
+                    all_chuncks.extend(retrieved_chuncks)
+                elif (retriever_choice == "hybrid"):
+                    retrieved_chuncks = bm25_retriever(query, text_splitter)
+                    all_chuncks.extend(retrieved_chuncks)
 
-            reranked_chuncks = rerank_chuncks(query, list(unique_docs))
+            unique_chuncks = {chunck.page_content: chunck for chunck in all_chuncks}.values()
+        else:
+            all_chuncks = []
+            if (retriever_choice == "faiss"):
+                retrieved_chuncks = faiss_retriever(query, embedding_model, text_splitter)
+                all_chuncks.extend(retrieved_chuncks)
+            elif (retriever_choice == "bm25"):
+                retrieved_chuncks = bm25_retriever(query, text_splitter)
+                all_chuncks.extend(retrieved_chuncks)
+            elif (retriever_choice == "hybrid"):
+                retrieved_chuncks = bm25_retriever(query, text_splitter)
+                all_chuncks.extend(retrieved_chuncks)
 
-        rewritten_query = query_rewriting(query, query_model)
-        yield gr.update(value=f"Original: {query}\n\nRewritten: {rewritten_query}"), None, None
+            unique_chuncks = {chunck.page_content: chunck for chunck in all_chuncks}.values()
 
-        retrieved_chuncks = faiss_retriever(query, embedding_model, text_splitter)
 
-        reranked_chuncks = rerank_chuncks(rewritten_query, retrieved_chuncks)
+        if chunk_rerank:
+            reranked_chuncks = rerank_chuncks(query_to_use, list(unique_chuncks))
+        else:
+            reranked_chuncks = list(unique_chuncks)[:4]
         mlflow.log_metric("num_docs_reranked", len(reranked_chuncks))
 
-        answer = generate_answer(rewritten_query, reranked_chuncks, local_llm, generationmodel_name)
-        yield gr.update(value=rewritten_query), gr.update(value=answer), None
 
-        verification = fact_check(answer, reranked_chuncks, local_llm)
-        mlflow.log_param("fact_check_verdict", verification)
+        answer = generate_answer(query_to_use, reranked_chuncks, local_llm, generationmodel_name)
+        yield gr.update(value=query_to_use), gr.update(value=f"Generated answer: {answer}"), None
 
-        audio_path = pytts_tts(answer, "voice_files/pytts_rag_answer.mp3")
+
+        if use_fact_check:
+            verdict = fact_check(answer, reranked_chuncks, local_llm)
+            mlflow.log_param("fact_check_verdict", verdict)
+            yield gr.update(value=query_to_use), gr.update(value=f"Generated answer: {answer}\n\nFact-checked: {verdict}"), None
+
+
+        if tts_choice == "pytts":
+            audio_path = pytts_tts(answer, "voice_files/pytts_rag_answer.mp3")
+        elif tts_choice == "xtts":
+            audio_path = xtts_tts(answer, "XTTS_Boti_sample.wav", "xtts_rag_answer.mp3")
+
+
         total_time = time.time() - total_start
         mlflow.log_metric("total_time", total_time)
 
-        yield gr.update(value=rewritten_query), gr.update(value=answer), gr.update(value=audio_path, autoplay=True)
+        yield gr.update(value=query_to_use), gr.update(value=answer), gr.update(value=audio_path, autoplay=True)
 
-    return f"Leirat: {query}", f"Válasz: {answer}", audio_path
+    return query, answer, audio_path
 
 with gr.Blocks() as ui:
     gr.Markdown(f"<u><h1 style='text-align: center;'>{interface_title}</h1></u>")
-    audio_input.render()
-    transcript_output.render()
-    rag_output.render()
-    tts_output.render()
+    with gr.Row():
+        with gr.Column(scale=1):
+            audio_input.render()
+            query_rewrite_toggle = gr.Checkbox(label="Use Query Rewriting", value=True)
+            multi_query_toggle = gr.Checkbox(label="Use Multi-Query Retrieval", value=False)
+            retriever_choice = gr.Radio(
+                choices=["faiss", "bm25", "hybrid"],
+                value="faiss",
+                label="Retriever Type"
+            )
+            chunk_rerank_toggle = gr.Checkbox(label="Enable Chunk Reranking", value=True)
+            fact_check_toggle = gr.Checkbox(label="Enable Fact Checking", value=False)
+            tts_choice = gr.Radio(
+                choices=["pytts", "xtts"],
+                value="pytts",
+                label="TTS Engine"
+            )
+
+        with gr.Column(scale=2):
+            transcript_output.render()
+            rag_output.render()
+            tts_output.render()
 
     audio_input.change(
         fn=transcribe_and_rag,
-        inputs=[audio_input],
+        inputs=[
+            audio_input,
+            query_rewrite_toggle,
+            multi_query_toggle,
+            retriever_choice,
+            fact_check_toggle,
+            tts_choice,
+            chunk_rerank_toggle,
+        ],
         outputs=[transcript_output, rag_output, tts_output]
     )
 
