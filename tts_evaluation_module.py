@@ -1,4 +1,5 @@
 from jiwer import wer
+from sentence_transformers import SentenceTransformer, util
 import librosa 
 from tts_module import *
 from utils_module import whisper_model
@@ -12,7 +13,7 @@ eval_dataset_tts_stt = [
     "Quantum computing represents a paradigm shift in computational technology with its potential to solve problems in cryptography, optimization, and artificial intelligence through quantum mechanical phenomena."
 ]
 
-def wer_score_stt(eval_dataset_tts_stt, excel_path='evaluation_results/stt_eval.xlsx'):
+def stt_eval(eval_dataset_tts_stt, excel_path='evaluation_results/stt_eval.xlsx'):
     ref_voice = [
         "voice_files/bio.wav",
         "voice_files/arch.wav",
@@ -22,19 +23,21 @@ def wer_score_stt(eval_dataset_tts_stt, excel_path='evaluation_results/stt_eval.
     for voice in ref_voice:
         transcriptions.append(transcribe(voice, whisper_model))
 
-    wer_results = []
+    stt_results = []
+    model = SentenceTransformer('all-MiniLM-L6-v2')
 
     for transcription, eval_text in zip(transcriptions, eval_dataset_tts_stt):
         whisper_wer = wer(eval_text, transcription)
-        wer_results.append({
+        similarity = util.cos_sim(model.encode(eval_text), model.encode(transcription))
+        stt_results.append({
             'Whisper Transcription': transcription,
             'Evaluation Text': eval_text,
+            "Semantic Similarity": float(similarity),
             'Transcription WER': whisper_wer
         })
 
-    df = pd.DataFrame(wer_results)
-    df.to_excel(excel_path, index=False, sheet_name='STT WER Results')
-
+    df = pd.DataFrame(stt_results)
+    df.to_excel(excel_path, index=False, sheet_name='STT Results')
 
 def wer_score_tts(eval_dataset_tts_stt, excel_path='evaluation_results/tts_eval.xlsx'):
     pytts_results = []
@@ -104,6 +107,6 @@ def pesq_score_tts(sr=16000, excel_path='evaluation_results/tts_eval.xlsx'):
     with pd.ExcelWriter(excel_path, engine='openpyxl', mode='a') as writer:
         df.to_excel(writer, index=False, sheet_name='PESQ Results')
 
-wer_score_stt(eval_dataset_tts_stt)
+stt_eval(eval_dataset_tts_stt)
 #wer_score_tts(eval_dataset_tts_stt)
 #pesq_score_tts()
