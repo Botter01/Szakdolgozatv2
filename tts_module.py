@@ -5,8 +5,8 @@ import librosa
 import soundfile as sf
 
 #MP3 -> WAV
-#y, sr = librosa.load("voice_files/pytts_answer_1.mp3", sr=16000, mono=True)
-#sf.write("voice_files/pytts_answer_1.wav", y, sr)
+#y, sr = librosa.load("voice_files/XTTS_Csenge_sample.mp3", sr=16000, mono=True)
+#sf.write("voice_files/XTTS_Csenge_sample.wav", y, sr)
 
 def pytts_tts(text, output_path):
     engine = pyttsx3.init()

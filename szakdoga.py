@@ -55,7 +55,6 @@ def multi_query(query, llm, variant_number):
     formatted_prompt = prompt.format(n=variant_number, query=query)
     response = llm.invoke(formatted_prompt).strip()
     variants = [q.strip("-•1234567890. ") for q in response.split("\n") if q.strip()]
-
     mlflow.log_param("query_variants", variants)
     mlflow.log_metric("multi_query_time", time.time() - multi_query_start)
 
@@ -68,23 +67,23 @@ def faiss_retriever(query, embedding_model, text_splitter, top_k=4, n_docs=3):
     wiki_chuncks = text_splitter.split_documents(wiki_docs)
     original_sources = [{"id": wiki_chunck.id, "title": wiki_chunck.metadata.get("title")} for wiki_chunck in wiki_chuncks]
 
-    mlflow.log_param("original_sources_faiss", original_sources)
-    mlflow.log_param("num_chunks_faiss", len(wiki_chuncks))
-    mlflow.log_param("load_max_docs_faiss", n_docs)
+    #mlflow.log_param("original_sources_faiss", original_sources)
+    #mlflow.log_param("num_chunks_faiss", len(wiki_chuncks))
+    #mlflow.log_param("load_max_docs_faiss", n_docs)
 
     embed_start = time.time()
     vectorstore = FAISS.from_documents(wiki_chuncks, embedding_model)
 
-    mlflow.log_metric("embedding_time", time.time() - embed_start)
+    #mlflow.log_metric("embedding_time", time.time() - embed_start)
 
     retriev_start = time.time()
     retriever = vectorstore.as_retriever(search_kwargs={"k": top_k})
     retrieved_chuncks = retriever.get_relevant_documents(query)
     retrieved_chuncks_titles = [{"id": retrieved_chunck.id, "title": retrieved_chunck.metadata.get("title")} for retrieved_chunck in retrieved_chuncks]
 
-    mlflow.log_param("retrieved_chuncks_faiss", retrieved_chuncks_titles)
-    mlflow.log_metric("retrieving_time_faiss", time.time() - retriev_start)
-    mlflow.log_param("retriever_k_faiss", top_k)
+    #mlflow.log_param("retrieved_chuncks_faiss", retrieved_chuncks_titles)
+    #mlflow.log_metric("retrieving_time_faiss", time.time() - retriev_start)
+    #mlflow.log_param("retriever_k_faiss", top_k)
 
     return retrieved_chuncks
 
@@ -95,9 +94,9 @@ def bm25_retriever(query, text_splitter, top_k=4, n_docs=3):
     wiki_chuncks = text_splitter.split_documents(raw_docs)
     original_sources = [{"id": wiki_chunck.id, "title": wiki_chunck.metadata.get("title")} for wiki_chunck in wiki_chuncks]
 
-    mlflow.log_param("original_sources_bm25", original_sources)
-    mlflow.log_param("num_chunks_bm25", len(wiki_chuncks))
-    mlflow.log_param("load_max_docs_bm25", n_docs)
+    #mlflow.log_param("original_sources_bm25", original_sources)
+    #mlflow.log_param("num_chunks_bm25", len(wiki_chuncks))
+    #mlflow.log_param("load_max_docs_bm25", n_docs)
 
     retriever = BM25Retriever.from_documents(wiki_chuncks)
     retriever.k = top_k
@@ -106,9 +105,9 @@ def bm25_retriever(query, text_splitter, top_k=4, n_docs=3):
     retrieved_chuncks = retriever.get_relevant_documents(query)
     retrieved_chuncks_titles = [{"id": retrieved_chunck.id, "title": retrieved_chunck.metadata.get("title")} for retrieved_chunck in retrieved_chuncks]
 
-    mlflow.log_param("retrieved_chuncks_bm25", retrieved_chuncks_titles)
-    mlflow.log_metric("retrieving_time_bm25", time.time() - retriev_start)
-    mlflow.log_param("retriever_k_bm25", top_k)
+    #mlflow.log_param("retrieved_chuncks_bm25", retrieved_chuncks_titles)
+    #mlflow.log_metric("retrieving_time_bm25", time.time() - retriev_start)
+    #mlflow.log_param("retriever_k_bm25", top_k)
 
     return retrieved_chuncks
 
@@ -243,13 +242,13 @@ def transcribe_and_rag(audio_path, use_query_rewriting, use_multi_query, retriev
 
             unique_chuncks = {chunck.page_content: chunck for chunck in all_chuncks}.values()
 
-
+        mlflow.log_param("unranked_chuncks", unique_chuncks)
         if chunk_rerank:
             reranked_chuncks = rerank_chuncks(query_to_use, list(unique_chuncks))
         else:
             reranked_chuncks = list(unique_chuncks)[:4]
         mlflow.log_metric("num_docs_reranked", len(reranked_chuncks))
-
+        mlflow.log_param("reranked_chuncks", reranked_chuncks)
 
         answer = generate_answer(query_to_use, reranked_chuncks, local_llm, generationmodel_name)
         yield gr.update(value=query_to_use), gr.update(value=f"Generated answer: {answer}"), None
@@ -265,7 +264,7 @@ def transcribe_and_rag(audio_path, use_query_rewriting, use_multi_query, retriev
             audio_path = pytts_tts(norm_answer, "voice_files/pytts_rag_answer.mp3")
         elif tts_choice == "xtts":
             norm_answer = normalize_numbers_tts(answer)
-            audio_path = xtts_tts(norm_answer, "XTTS_Boti_sample.wav", "xtts_rag_answer.mp3")
+            audio_path = xtts_tts(norm_answer, "XTTS_Csenge_sample.wav", "xtts_rag_answer_csenge.mp3")
 
 
         mlflow.log_metric("total_time", time.time() - total_start)
