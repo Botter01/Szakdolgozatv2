@@ -15,7 +15,7 @@ def transcribe(audio_path, whisper_model):
     result = whisper_model.transcribe(audio_path, language="en")
     query = result["text"]
 
-    #mlflow.log_metric("whisper_time", time.time() - start)
+    mlflow.log_metric("whisper_time", time.time() - start)
 
     return query
 
@@ -261,9 +261,11 @@ def transcribe_and_rag(audio_path, use_query_rewriting, use_multi_query, retriev
 
 
         if tts_choice == "pytts":
-            audio_path = pytts_tts(answer, "voice_files/pytts_rag_answer.mp3")
+            norm_answer = normalize_numbers_tts(answer)
+            audio_path = pytts_tts(norm_answer, "voice_files/pytts_rag_answer.mp3")
         elif tts_choice == "xtts":
-            audio_path = xtts_tts(answer, "XTTS_Boti_sample.wav", "xtts_rag_answer.mp3")
+            norm_answer = normalize_numbers_tts(answer)
+            audio_path = xtts_tts(norm_answer, "XTTS_Boti_sample.wav", "xtts_rag_answer.mp3")
 
 
         mlflow.log_metric("total_time", time.time() - total_start)

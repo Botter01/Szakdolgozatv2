@@ -1,5 +1,6 @@
 import whisper
 import re
+import inflect
 from langchain_community.embeddings import OllamaEmbeddings
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_ollama import OllamaLLM
@@ -30,3 +31,13 @@ reranker = CrossEncoder("BAAI/bge-reranker-large")
 
 def strip_reasoning(text):
     return re.sub(r".*?</think>", "", text, flags=re.DOTALL).strip()
+
+def normalize_numbers_tts(query):
+    p = inflect.engine()
+    def replace_number(match):
+        number = match.group()
+        try:
+            return p.number_to_words(int(number))
+        except:
+            return number 
+    return re.sub(r'\b\d+\b', replace_number, query)
