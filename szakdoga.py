@@ -15,7 +15,7 @@ def transcribe(audio_path, whisper_model):
     result = whisper_model.transcribe(audio_path, language="en")
     query = result["text"]
 
-    mlflow.log_metric("whisper_time", time.time() - start)
+    #mlflow.log_metric("whisper_time", time.time() - start)
 
     return query
 

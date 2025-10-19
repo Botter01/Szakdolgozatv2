@@ -12,7 +12,31 @@ eval_dataset_tts_stt = [
     "Quantum computing represents a paradigm shift in computational technology with its potential to solve problems in cryptography, optimization, and artificial intelligence through quantum mechanical phenomena."
 ]
 
-def wer_score(eval_dataset_tts_stt, excel_path='evaluation_results/tts_eval.xlsx'):
+def wer_score_stt(eval_dataset_tts_stt, excel_path='evaluation_results/stt_eval.xlsx'):
+    ref_voice = [
+        "voice_files/bio.wav",
+        "voice_files/arch.wav",
+        "voice_files/quantum.wav"
+    ]
+    transcriptions = []
+    for voice in ref_voice:
+        transcriptions.append(transcribe(voice, whisper_model))
+
+    wer_results = []
+
+    for transcription, eval_text in zip(transcriptions, eval_dataset_tts_stt):
+        whisper_wer = wer(eval_text, transcription)
+        wer_results.append({
+            'Whisper Transcription': transcription,
+            'Evaluation Text': eval_text,
+            'Transcription WER': whisper_wer
+        })
+
+    df = pd.DataFrame(wer_results)
+    df.to_excel(excel_path, index=False, sheet_name='STT WER Results')
+
+
+def wer_score_tts(eval_dataset_tts_stt, excel_path='evaluation_results/tts_eval.xlsx'):
     pytts_results = []
     xtts_results = []
     pytts_transcribe_results = []
@@ -39,9 +63,9 @@ def wer_score(eval_dataset_tts_stt, excel_path='evaluation_results/tts_eval.xlsx
         })
 
     df = pd.DataFrame(wer_results)
-    df.to_excel(excel_path, index=False, sheet_name='WER Results')
+    df.to_excel(excel_path, index=False, sheet_name='TTS WER Results')
 
-def pesq_score(sr=16000, excel_path='evaluation_results/tts_eval.xlsx'):
+def pesq_score_tts(sr=16000, excel_path='evaluation_results/tts_eval.xlsx'):
     pytts_voice = [
         "voice_files/pytts_answer_0.wav",
         "voice_files/pytts_answer_1.wav",
@@ -80,5 +104,6 @@ def pesq_score(sr=16000, excel_path='evaluation_results/tts_eval.xlsx'):
     with pd.ExcelWriter(excel_path, engine='openpyxl', mode='a') as writer:
         df.to_excel(writer, index=False, sheet_name='PESQ Results')
 
-wer_score(eval_dataset_tts_stt)
-pesq_score()
+wer_score_stt(eval_dataset_tts_stt)
+#wer_score_tts(eval_dataset_tts_stt)
+#pesq_score_tts()
