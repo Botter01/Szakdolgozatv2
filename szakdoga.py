@@ -13,9 +13,9 @@ def transcribe(audio_path, whisper_model):
     start = time.time()
 
     result = whisper_model.transcribe(audio_path, language="en")
-    duration = time.time() - start
-    mlflow.log_metric("whisper_time", duration)
     query = result["text"]
+
+    mlflow.log_metric("whisper_time", time.time() - start)
 
     return query
 
@@ -33,15 +33,15 @@ def query_rewriting(query, llm):
 
     formatted_prompt = prompt.format(query=query)
     rewritten_query = llm.invoke(formatted_prompt).strip()
-    duration = time.time() - start
 
-    mlflow.log_metric("rewrite_time", duration)
-    mlflow.log_param("rewrite_input", query)
-    mlflow.log_param("rewrite_output", rewritten_query)
+    mlflow.log_metric("rewrite_time", time.time() - start)
+    mlflow.log_param("original_query", query)
+    mlflow.log_param("rewritten_query", rewritten_query)
 
     return rewritten_query
 
 def multi_query(query, llm, variant_number):
+    multi_query_start = time.time()
     prompt = PromptTemplate(
         template = (
         "Generate {n} different paraphrases of the following query.\n"
@@ -56,30 +56,35 @@ def multi_query(query, llm, variant_number):
     response = llm.invoke(formatted_prompt).strip()
     variants = [q.strip("-•1234567890. ") for q in response.split("\n") if q.strip()]
 
+    mlflow.log_param("query_variants", variants)
+    mlflow.log_metric("multi_query_time", time.time() - multi_query_start)
+
     return [query] + variants[:variant_number]
 
 def faiss_retriever(query, embedding_model, text_splitter, top_k=4, n_docs=3):
-    load_start = time.time()
-
     loader = WikipediaLoader(query=query, lang="en", load_max_docs=n_docs)
     wiki_docs = loader.load()
 
     wiki_chuncks = text_splitter.split_documents(wiki_docs)
     original_sources = [{"id": wiki_chunck.id, "title": wiki_chunck.metadata.get("title")} for wiki_chunck in wiki_chuncks]
 
-    #mlflow.log_param("original_sources", original_sources)
-    #mlflow.log_param("chunk_size", 1000)
-    #mlflow.log_param("num_chunks", len(wiki_chuncks))
-    #mlflow.log_param("load_max_docs", n_docs)
-    #mlflow.log_metric("load_time", time.time() - load_start)
+    mlflow.log_param("original_sources_faiss", original_sources)
+    mlflow.log_param("num_chunks_faiss", len(wiki_chuncks))
+    mlflow.log_param("load_max_docs_faiss", n_docs)
 
     embed_start = time.time()
     vectorstore = FAISS.from_documents(wiki_chuncks, embedding_model)
-    #mlflow.log_metric("embedding_time", time.time() - embed_start)
 
+    mlflow.log_metric("embedding_time", time.time() - embed_start)
+
+    retriev_start = time.time()
     retriever = vectorstore.as_retriever(search_kwargs={"k": top_k})
     retrieved_chuncks = retriever.get_relevant_documents(query)
-    #mlflow.log_param("retriever_k", top_k)
+    retrieved_chuncks_titles = [{"id": retrieved_chunck.id, "title": retrieved_chunck.metadata.get("title")} for retrieved_chunck in retrieved_chuncks]
+
+    mlflow.log_param("retrieved_chuncks_faiss", retrieved_chuncks_titles)
+    mlflow.log_metric("retrieving_time_faiss", time.time() - retriev_start)
+    mlflow.log_param("retriever_k_faiss", top_k)
 
     return retrieved_chuncks
 
@@ -88,23 +93,40 @@ def bm25_retriever(query, text_splitter, top_k=4, n_docs=3):
     raw_docs = loader.load()
 
     wiki_chuncks = text_splitter.split_documents(raw_docs)
+    original_sources = [{"id": wiki_chunck.id, "title": wiki_chunck.metadata.get("title")} for wiki_chunck in wiki_chuncks]
+
+    mlflow.log_param("original_sources_bm25", original_sources)
+    mlflow.log_param("num_chunks_bm25", len(wiki_chuncks))
+    mlflow.log_param("load_max_docs_bm25", n_docs)
+
     retriever = BM25Retriever.from_documents(wiki_chuncks)
     retriever.k = top_k
+
+    retriev_start = time.time()
     retrieved_chuncks = retriever.get_relevant_documents(query)
+    retrieved_chuncks_titles = [{"id": retrieved_chunck.id, "title": retrieved_chunck.metadata.get("title")} for retrieved_chunck in retrieved_chuncks]
+
+    mlflow.log_param("retrieved_chuncks_bm25", retrieved_chuncks_titles)
+    mlflow.log_metric("retrieving_time_bm25", time.time() - retriev_start)
+    mlflow.log_param("retriever_k_bm25", top_k)
 
     return retrieved_chuncks
 
 def hybrid_retriever(query, embedding_model, text_splitter, top_k=4, n_docs=3):
+    retriev_start = time.time()
+    
     bm25_chuncks = bm25_retriever(query, text_splitter, top_k, n_docs)
     faiss_chuncks = faiss_retriever(query, embedding_model, text_splitter, top_k, n_docs)
 
     all_chuncks = list({chunck.page_content: chunck for chunck in bm25_chuncks + faiss_chuncks}.values())
 
     reranked_chuncks = rerank_chuncks(query, all_chuncks)
+
+    mlflow.log_metric("retrieving_time_hybrid", time.time() - retriev_start)
+
     return reranked_chuncks[:top_k]
 
 def rerank_chuncks(query, chuncks):
-
     start = time.time()
 
     pairs = [[query, chunck.page_content] for chunck in chuncks]
@@ -112,16 +134,14 @@ def rerank_chuncks(query, chuncks):
     ranked = sorted(zip(chuncks, scores), key=lambda x: x[1], reverse=True)
     reranked_chuncks = [chunck for chunck, _ in ranked[:4]]
 
-    duration = time.time() - start
     avg_score = float(sum(scores) / len(scores)) if len(scores) > 0 else 0
 
-    #mlflow.log_metric("rerank_time", duration)
-    #mlflow.log_metric("rerank_avg_score", avg_score)
+    mlflow.log_metric("rerank_time", time.time() - start)
+    mlflow.log_metric("rerank_avg_score", avg_score)
 
     return reranked_chuncks
 
 def generate_answer(query, reranked_chuncks, llm, model_name):
-
     start = time.time()
     prompt = PromptTemplate(
         template=(
@@ -139,17 +159,16 @@ def generate_answer(query, reranked_chuncks, llm, model_name):
     
     chain = prompt | llm
     response = chain.invoke({"context": context, "question": query})
-    #mlflow.log_metric("llm_time", time.time() - start)
-    #mlflow.log_param("model_name", model_name)
+    mlflow.log_metric("llm_time", time.time() - start)
+    mlflow.log_param("answer_generator_model", model_name)
 
     answer = strip_reasoning(response)
-    #mlflow.log_param("reasoning", response)
-    #mlflow.log_metric("answer_length", len(answer))
+    mlflow.log_param("reasoning", response)
+    mlflow.log_metric("answer_length", len(answer))
 
     return answer
 
 def fact_check(answer, chuncks, llm):
-
     start = time.time()
     context = "\n\n".join(chunck.page_content for chunck in chuncks[:3])
 
@@ -173,11 +192,9 @@ def fact_check(answer, chuncks, llm):
     
     formatted_prompt = prompt.format(context=context, answer=answer)
     verification = llm.invoke(formatted_prompt).strip()
-    mlflow.log_param("fact_check_verification_result", verification)
     verdict = strip_reasoning(verification)
-    duration = time.time() - start
-
-    mlflow.log_metric("fact_check_time", duration)
+    mlflow.log_param("fact_check_verification_result", verdict)
+    mlflow.log_metric("fact_check_time", time.time() - start)
 
     return verdict
 
@@ -240,7 +257,6 @@ def transcribe_and_rag(audio_path, use_query_rewriting, use_multi_query, retriev
 
         if use_fact_check:
             verdict = fact_check(answer, reranked_chuncks, local_llm)
-            mlflow.log_param("fact_check_verdict", verdict)
             yield gr.update(value=query_to_use), gr.update(value=f"Generated answer: {answer}\n\nFact-checked: {verdict}"), None
 
 
@@ -250,8 +266,7 @@ def transcribe_and_rag(audio_path, use_query_rewriting, use_multi_query, retriev
             audio_path = xtts_tts(answer, "XTTS_Boti_sample.wav", "xtts_rag_answer.mp3")
 
 
-        total_time = time.time() - total_start
-        mlflow.log_metric("total_time", total_time)
+        mlflow.log_metric("total_time", time.time() - total_start)
 
         yield gr.update(value=query_to_use), gr.update(value=answer), gr.update(value=audio_path, autoplay=True)
 
