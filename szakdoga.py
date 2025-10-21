@@ -45,6 +45,7 @@ def multi_aspect_query(query, llm, variant_number):
     prompt = PromptTemplate(
         template=(
             "You are a research assistant helping to expand a user's question into multiple sub-queries.\n"
+            "Each should be clear, factual, and optimized for Wikipedia search.\n\n"
             "Each sub-query should explore a different aspect (e.g., historical, technical, social, or economic) "
             "of the same main question.\n\n"
             "Main question: \"{query}\"\n\n"
@@ -54,10 +55,11 @@ def multi_aspect_query(query, llm, variant_number):
     )
     formatted_prompt = prompt.format(query=query, n=variant_number)
     response = llm.invoke(formatted_prompt).strip()
-    sub_queries = [q.strip("-•1234567890. ") for q in response.split("\n") if q.strip()]
+    sub_queries = [q.lstrip("-• ").rstrip().strip() for q in response.split("\n") if q.strip()]
 
     mlflow.log_param("aspect_sub_queries", sub_queries)
     mlflow.log_metric("multi_aspect_query_time", time.time() - multi_aspect_query_start)
+    print(sub_queries)
 
     return [query] + sub_queries[:variant_number]
 
@@ -75,40 +77,40 @@ def multi_paraphrase_query(query, llm, variant_number):
 
     formatted_prompt = prompt.format(n=variant_number, query=query)
     response = llm.invoke(formatted_prompt).strip()
-    variants = [q.strip("-•1234567890. ") for q in response.split("\n") if q.strip()]
+    variants = [q.lstrip("-• ").rstrip().strip() for q in response.split("\n") if q.strip()]
     mlflow.log_param("query_variants", variants)
     mlflow.log_metric("multi_query_time", time.time() - multi_query_start)
 
     return [query] + variants[:variant_number]
 
-def faiss_retriever(query, embedding_model, text_splitter, top_k=4, n_docs=3):
+def faiss_retriever(query, embedding_model, text_splitter, top_k=4, n_docs=6):
     loader = WikipediaLoader(query=query, lang="en", load_max_docs=n_docs)
     wiki_docs = loader.load()
 
     wiki_chuncks = text_splitter.split_documents(wiki_docs)
     original_sources = [{"id": wiki_chunck.id, "title": wiki_chunck.metadata.get("title")} for wiki_chunck in wiki_chuncks]
 
-    #mlflow.log_param("original_sources_faiss", original_sources)
-    #mlflow.log_param("num_chunks_faiss", len(wiki_chuncks))
-    #mlflow.log_param("load_max_docs_faiss", n_docs)
+    mlflow.log_param("original_sources_faiss", original_sources)
+    mlflow.log_param("num_chunks_faiss", len(wiki_chuncks))
+    mlflow.log_param("load_max_docs_faiss", n_docs)
 
     embed_start = time.time()
     vectorstore = FAISS.from_documents(wiki_chuncks, embedding_model)
 
-    #mlflow.log_metric("embedding_time", time.time() - embed_start)
+    mlflow.log_metric("embedding_time", time.time() - embed_start)
 
     retriev_start = time.time()
     retriever = vectorstore.as_retriever(search_kwargs={"k": top_k})
     retrieved_chuncks = retriever.get_relevant_documents(query)
     retrieved_chuncks_titles = [{"id": retrieved_chunck.id, "title": retrieved_chunck.metadata.get("title")} for retrieved_chunck in retrieved_chuncks]
 
-    #mlflow.log_param("retrieved_chuncks_faiss", retrieved_chuncks_titles)
-    #mlflow.log_metric("retrieving_time_faiss", time.time() - retriev_start)
-    #mlflow.log_param("retriever_k_faiss", top_k)
+    mlflow.log_param("retrieved_chuncks_faiss", retrieved_chuncks_titles)
+    mlflow.log_metric("retrieving_time_faiss", time.time() - retriev_start)
+    mlflow.log_param("retriever_k_faiss", top_k)
 
     return retrieved_chuncks
 
-def bm25_retriever(query, text_splitter, top_k=4, n_docs=3):
+def bm25_retriever(query, text_splitter, top_k=4, n_docs=6):
     loader = WikipediaLoader(query=query, lang="en", load_max_docs=n_docs)
     raw_docs = loader.load()
 
@@ -132,7 +134,7 @@ def bm25_retriever(query, text_splitter, top_k=4, n_docs=3):
 
     return retrieved_chuncks
 
-def hybrid_retriever(query, embedding_model, text_splitter, top_k=4, n_docs=3):
+def hybrid_retriever(query, embedding_model, text_splitter, top_k=4, n_docs=6):
     retriev_start = time.time()
     
     bm25_chuncks = bm25_retriever(query, text_splitter, top_k, n_docs)
@@ -218,7 +220,7 @@ def fact_check(answer, chuncks, llm):
 
     return verdict
 
-def transcribe_and_rag(audio_path, use_query_rewriting, use_multi_paraphrase_query, use_multi_aspect_query,retriever_choice, use_fact_check, tts_choice, chunk_rerank, query_model=query_model):
+def transcribe_and_rag(audio_path, use_query_rewriting, multi_query_choice, retriever_choice, use_fact_check, tts_choice, chunk_rerank, query_model=local_llm):
     with mlflow.start_run():
         total_start = time.time()
 
@@ -233,8 +235,8 @@ def transcribe_and_rag(audio_path, use_query_rewriting, use_multi_paraphrase_que
             query_to_use = query
         
 
-        if (use_multi_paraphrase_query):
-            queries = multi_paraphrase_query(query_to_use, query_model, 4)
+        if (multi_query_choice == "paraphrase"):
+            queries = multi_paraphrase_query(query_to_use, query_model, 3)
             all_chuncks = []
 
             for query in queries:
@@ -250,8 +252,8 @@ def transcribe_and_rag(audio_path, use_query_rewriting, use_multi_paraphrase_que
 
             unique_chuncks = {chunck.page_content: chunck for chunck in all_chuncks}.values()
 
-        elif (use_multi_aspect_query):
-            queries = multi_aspect_query(query_to_use, query_model, 4)
+        elif (multi_query_choice == "aspect"):
+            queries = multi_aspect_query(query_to_use, query_model, 3)
             all_chuncks = []
 
             for query in queries:
@@ -318,8 +320,11 @@ with gr.Blocks() as ui:
         with gr.Column(scale=1):
             audio_input.render()
             query_rewrite_toggle = gr.Checkbox(label="Use Query Rewriting", value=True)
-            multi_query_paraphrase_toggle = gr.Checkbox(label="Use Multi-Query Paraphrase Retrieval", value=False)
-            multi_query_aspect_toggle = gr.Checkbox(label="Use Multi-Query Aspect Retrieval", value=False)
+            multi_query_choice = gr.Radio(
+                choices=["paraphrase", "aspect", "None"],
+                value="None",
+                label="Multi-Query Type"
+            )
             retriever_choice = gr.Radio(
                 choices=["faiss", "bm25", "hybrid"],
                 value="faiss",
@@ -343,8 +348,7 @@ with gr.Blocks() as ui:
         inputs=[
             audio_input,
             query_rewrite_toggle,
-            multi_query_paraphrase_toggle,
-            multi_query_aspect_toggle,
+            multi_query_choice,
             retriever_choice,
             fact_check_toggle,
             tts_choice,
