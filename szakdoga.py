@@ -40,7 +40,28 @@ def query_rewriting(query, llm):
 
     return rewritten_query
 
-def multi_query(query, llm, variant_number):
+def multi_aspect_query(query, llm, variant_number):
+    multi_aspect_query_start = time.time()
+    prompt = PromptTemplate(
+        template=(
+            "You are a research assistant helping to expand a user's question into multiple sub-queries.\n"
+            "Each sub-query should explore a different aspect (e.g., historical, technical, social, or economic) "
+            "of the same main question.\n\n"
+            "Main question: \"{query}\"\n\n"
+            "Generate {n} aspect-based sub-queries (no numbering, one per line):"
+        ),
+        input_variables=["query","n"]
+    )
+    formatted_prompt = prompt.format(query=query, n=variant_number)
+    response = llm.invoke(formatted_prompt).strip()
+    sub_queries = [q.strip("-•1234567890. ") for q in response.split("\n") if q.strip()]
+
+    mlflow.log_param("aspect_sub_queries", sub_queries)
+    mlflow.log_metric("multi_aspect_query_time", time.time() - multi_aspect_query_start)
+
+    return [query] + sub_queries[:variant_number]
+
+def multi_paraphrase_query(query, llm, variant_number):
     multi_query_start = time.time()
     prompt = PromptTemplate(
         template = (
@@ -197,7 +218,7 @@ def fact_check(answer, chuncks, llm):
 
     return verdict
 
-def transcribe_and_rag(audio_path, use_query_rewriting, use_multi_query, retriever_choice, use_fact_check, tts_choice, chunk_rerank, query_model=query_model):
+def transcribe_and_rag(audio_path, use_query_rewriting, use_multi_paraphrase_query, use_multi_aspect_query,retriever_choice, use_fact_check, tts_choice, chunk_rerank, query_model=query_model):
     with mlflow.start_run():
         total_start = time.time()
 
@@ -212,8 +233,8 @@ def transcribe_and_rag(audio_path, use_query_rewriting, use_multi_query, retriev
             query_to_use = query
         
 
-        if (use_multi_query):
-            queries = multi_query(query_to_use, query_model, 3)
+        if (use_multi_paraphrase_query):
+            queries = multi_paraphrase_query(query_to_use, query_model, 4)
             all_chuncks = []
 
             for query in queries:
@@ -228,6 +249,24 @@ def transcribe_and_rag(audio_path, use_query_rewriting, use_multi_query, retriev
                     all_chuncks.extend(retrieved_chuncks)
 
             unique_chuncks = {chunck.page_content: chunck for chunck in all_chuncks}.values()
+
+        elif (use_multi_aspect_query):
+            queries = multi_aspect_query(query_to_use, query_model, 4)
+            all_chuncks = []
+
+            for query in queries:
+                if (retriever_choice == "faiss"):
+                    retrieved_chuncks = faiss_retriever(query, embedding_model, text_splitter)
+                    all_chuncks.extend(retrieved_chuncks)
+                elif (retriever_choice == "bm25"):
+                    retrieved_chuncks = bm25_retriever(query, text_splitter)
+                    all_chuncks.extend(retrieved_chuncks)
+                elif (retriever_choice == "hybrid"):
+                    retrieved_chuncks = bm25_retriever(query, text_splitter)
+                    all_chuncks.extend(retrieved_chuncks)
+
+            unique_chuncks = {chunck.page_content: chunck for chunck in all_chuncks}.values()
+
         else:
             all_chuncks = []
             if (retriever_choice == "faiss"):
@@ -279,7 +318,8 @@ with gr.Blocks() as ui:
         with gr.Column(scale=1):
             audio_input.render()
             query_rewrite_toggle = gr.Checkbox(label="Use Query Rewriting", value=True)
-            multi_query_toggle = gr.Checkbox(label="Use Multi-Query Retrieval", value=False)
+            multi_query_paraphrase_toggle = gr.Checkbox(label="Use Multi-Query Paraphrase Retrieval", value=False)
+            multi_query_aspect_toggle = gr.Checkbox(label="Use Multi-Query Aspect Retrieval", value=False)
             retriever_choice = gr.Radio(
                 choices=["faiss", "bm25", "hybrid"],
                 value="faiss",
@@ -303,7 +343,8 @@ with gr.Blocks() as ui:
         inputs=[
             audio_input,
             query_rewrite_toggle,
-            multi_query_toggle,
+            multi_query_paraphrase_toggle,
+            multi_query_aspect_toggle,
             retriever_choice,
             fact_check_toggle,
             tts_choice,
