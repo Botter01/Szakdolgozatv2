@@ -6,6 +6,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_ollama import OllamaLLM
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from sentence_transformers import CrossEncoder
+from langchain_community.document_loaders import WikipediaLoader
 
 fastmodel_name = "qwen3:0.6b"
 querymodel_name = "phi3:medium"

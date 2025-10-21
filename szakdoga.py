@@ -83,34 +83,35 @@ def multi_paraphrase_query(query, llm, variant_number):
 
     return [query] + variants[:variant_number]
 
-def faiss_retriever(query, embedding_model, text_splitter, top_k=4, n_docs=6):
+def faiss_retriever(query, embedding_model, text_splitter, top_k=4, n_docs=2):
     loader = WikipediaLoader(query=query, lang="en", load_max_docs=n_docs)
     wiki_docs = loader.load()
+    print(f"Ki vett doksik: {query}, {len(wiki_docs)}")
 
     wiki_chuncks = text_splitter.split_documents(wiki_docs)
     original_sources = [{"id": wiki_chunck.id, "title": wiki_chunck.metadata.get("title")} for wiki_chunck in wiki_chuncks]
 
-    mlflow.log_param("original_sources_faiss", original_sources)
-    mlflow.log_param("num_chunks_faiss", len(wiki_chuncks))
-    mlflow.log_param("load_max_docs_faiss", n_docs)
+    #mlflow.log_param("original_sources_faiss", original_sources)
+    #mlflow.log_param("num_chunks_faiss", len(wiki_chuncks))
+    #mlflow.log_param("load_max_docs_faiss", n_docs)
 
     embed_start = time.time()
     vectorstore = FAISS.from_documents(wiki_chuncks, embedding_model)
 
-    mlflow.log_metric("embedding_time", time.time() - embed_start)
+    #mlflow.log_metric("embedding_time", time.time() - embed_start)
 
     retriev_start = time.time()
     retriever = vectorstore.as_retriever(search_kwargs={"k": top_k})
     retrieved_chuncks = retriever.get_relevant_documents(query)
     retrieved_chuncks_titles = [{"id": retrieved_chunck.id, "title": retrieved_chunck.metadata.get("title")} for retrieved_chunck in retrieved_chuncks]
 
-    mlflow.log_param("retrieved_chuncks_faiss", retrieved_chuncks_titles)
-    mlflow.log_metric("retrieving_time_faiss", time.time() - retriev_start)
-    mlflow.log_param("retriever_k_faiss", top_k)
+    #mlflow.log_param("retrieved_chuncks_faiss", retrieved_chuncks_titles)
+    #mlflow.log_metric("retrieving_time_faiss", time.time() - retriev_start)
+    #mlflow.log_param("retriever_k_faiss", top_k)
 
     return retrieved_chuncks
 
-def bm25_retriever(query, text_splitter, top_k=4, n_docs=6):
+def bm25_retriever(query, text_splitter, top_k=4, n_docs=2):
     loader = WikipediaLoader(query=query, lang="en", load_max_docs=n_docs)
     raw_docs = loader.load()
 
@@ -134,7 +135,7 @@ def bm25_retriever(query, text_splitter, top_k=4, n_docs=6):
 
     return retrieved_chuncks
 
-def hybrid_retriever(query, embedding_model, text_splitter, top_k=4, n_docs=6):
+def hybrid_retriever(query, embedding_model, text_splitter, top_k=4, n_docs=2):
     retriev_start = time.time()
     
     bm25_chuncks = bm25_retriever(query, text_splitter, top_k, n_docs)
@@ -220,7 +221,7 @@ def fact_check(answer, chuncks, llm):
 
     return verdict
 
-def transcribe_and_rag(audio_path, use_query_rewriting, multi_query_choice, retriever_choice, use_fact_check, tts_choice, chunk_rerank, query_model=local_llm):
+def transcribe_and_rag(audio_path, use_query_rewriting, multi_query_choice, retriever_choice, use_fact_check, tts_choice, chunk_rerank, query_model=query_model, generator_model=local_llm):
     with mlflow.start_run():
         total_start = time.time()
 
@@ -236,7 +237,7 @@ def transcribe_and_rag(audio_path, use_query_rewriting, multi_query_choice, retr
         
 
         if (multi_query_choice == "paraphrase"):
-            queries = multi_paraphrase_query(query_to_use, query_model, 3)
+            queries = multi_paraphrase_query(query_to_use, generator_model, 3)
             all_chuncks = []
 
             for query in queries:
@@ -253,7 +254,7 @@ def transcribe_and_rag(audio_path, use_query_rewriting, multi_query_choice, retr
             unique_chuncks = {chunck.page_content: chunck for chunck in all_chuncks}.values()
 
         elif (multi_query_choice == "aspect"):
-            queries = multi_aspect_query(query_to_use, query_model, 3)
+            queries = multi_aspect_query(query_to_use, generator_model, 3)
             all_chuncks = []
 
             for query in queries:
