@@ -33,6 +33,7 @@ def query_rewriting(query, llm):
 
     formatted_prompt = prompt.format(query=query)
     rewritten_query = llm.invoke(formatted_prompt).strip()
+    rewritten_query = strip_reasoning(rewritten_query)
 
     mlflow.log_metric("rewrite_time", time.time() - start)
     mlflow.log_param("original_query", query)
@@ -44,14 +45,22 @@ def multi_aspect_query(query, llm, variant_number):
     multi_aspect_query_start = time.time()
     prompt = PromptTemplate(
         template=(
-            "You are a research assistant helping to expand a user's question into multiple sub-queries.\n"
-            "Each should be clear, factual, and optimized for Wikipedia search.\n\n"
-            "Each sub-query should explore a different aspect (e.g., historical, technical, social, or economic) "
-            "of the same main question.\n\n"
-            "Main question: \"{query}\"\n\n"
-            "Generate {n} aspect-based sub-queries (no numbering, one per line):"
+            "You are an expert research assistant creating concise search queries for Wikipedia.\n\n"
+            "Your task is to take the user's question and expand it into {n} distinct, short sub-queries.\n"
+            "Each sub-query should focus on a different aspect of the topic (for example: historical, social, political, economic, or cultural),\n"
+            "and be phrased in a way that Wikipedia search would likely return relevant pages.\n\n"
+            "Keep each sub-query under 10 words, avoid question marks or filler words.\n"
+            "Example:\n"
+            "Main question: 'Causes and effects of the 1956 Hungarian Revolution'\n"
+            "Sub-queries:\n"
+            "- 1956 Hungarian Revolution political causes\n"
+            "- 1956 Hungarian Revolution social impact\n"
+            "- 1956 Hungarian Revolution economic consequences\n"
+            "- Soviet response to the 1956 Hungarian Revolution\n\n"
+            "Now create {n} sub-queries for:\n\"{query}\"\n\n"
+            "Output each sub-query on a new line, without numbering or bullet points."
         ),
-        input_variables=["query","n"]
+        input_variables=["query", "n"]
     )
     formatted_prompt = prompt.format(query=query, n=variant_number)
     response = llm.invoke(formatted_prompt).strip()
@@ -85,8 +94,8 @@ def multi_paraphrase_query(query, llm, variant_number):
 
 def faiss_retriever(query, embedding_model, text_splitter, top_k=4, n_docs=2):
     loader = WikipediaLoader(query=query, lang="en", load_max_docs=n_docs)
+    time.sleep(2)
     wiki_docs = loader.load()
-    print(f"Ki vett doksik: {query}, {len(wiki_docs)}")
 
     wiki_chuncks = text_splitter.split_documents(wiki_docs)
     original_sources = [{"id": wiki_chunck.id, "title": wiki_chunck.metadata.get("title")} for wiki_chunck in wiki_chuncks]
@@ -112,11 +121,15 @@ def faiss_retriever(query, embedding_model, text_splitter, top_k=4, n_docs=2):
     return retrieved_chuncks
 
 def bm25_retriever(query, text_splitter, top_k=4, n_docs=2):
+    print(f"Query BM25-nél {query}")
     loader = WikipediaLoader(query=query, lang="en", load_max_docs=n_docs)
+    time.sleep(2)
     raw_docs = loader.load()
+    print(f"Vamos: {len(raw_docs)}")
 
     wiki_chuncks = text_splitter.split_documents(raw_docs)
     original_sources = [{"id": wiki_chunck.id, "title": wiki_chunck.metadata.get("title")} for wiki_chunck in wiki_chuncks]
+    print(f"Lol: {original_sources}")
 
     #mlflow.log_param("original_sources_bm25", original_sources)
     #mlflow.log_param("num_chunks_bm25", len(wiki_chuncks))
@@ -127,6 +140,7 @@ def bm25_retriever(query, text_splitter, top_k=4, n_docs=2):
 
     retriev_start = time.time()
     retrieved_chuncks = retriever.get_relevant_documents(query)
+    print(len(retrieved_chuncks))
     retrieved_chuncks_titles = [{"id": retrieved_chunck.id, "title": retrieved_chunck.metadata.get("title")} for retrieved_chunck in retrieved_chuncks]
 
     #mlflow.log_param("retrieved_chuncks_bm25", retrieved_chuncks_titles)
@@ -229,7 +243,7 @@ def transcribe_and_rag(audio_path, use_query_rewriting, multi_query_choice, retr
         yield gr.update(value=f"Transcribed query: {query}"), None, None
 
         if (use_query_rewriting):
-            rewritten_query = query_rewriting(query, query_model)
+            rewritten_query = query_rewriting(query, generator_model)
             query_to_use = rewritten_query
             yield gr.update(value=f"Original query: {query}\n\nRewritten query: {query_to_use}"), None, None
         else:
@@ -248,8 +262,8 @@ def transcribe_and_rag(audio_path, use_query_rewriting, multi_query_choice, retr
                     retrieved_chuncks = bm25_retriever(query, text_splitter)
                     all_chuncks.extend(retrieved_chuncks)
                 elif (retriever_choice == "hybrid"):
-                    retrieved_chuncks = bm25_retriever(query, text_splitter)
-                    all_chuncks.extend(retrieved_chuncks)
+                    retrieved_chuncks_hybrid = hybrid_retriever(query, embedding_model, text_splitter)
+                    all_chuncks.extend(retrieved_chuncks_hybrid)
 
             unique_chuncks = {chunck.page_content: chunck for chunck in all_chuncks}.values()
 
@@ -265,8 +279,8 @@ def transcribe_and_rag(audio_path, use_query_rewriting, multi_query_choice, retr
                     retrieved_chuncks = bm25_retriever(query, text_splitter)
                     all_chuncks.extend(retrieved_chuncks)
                 elif (retriever_choice == "hybrid"):
-                    retrieved_chuncks = bm25_retriever(query, text_splitter)
-                    all_chuncks.extend(retrieved_chuncks)
+                    retrieved_chuncks_hybrid = hybrid_retriever(query, embedding_model, text_splitter)
+                    all_chuncks.extend(retrieved_chuncks_hybrid)
 
             unique_chuncks = {chunck.page_content: chunck for chunck in all_chuncks}.values()
 
@@ -279,8 +293,8 @@ def transcribe_and_rag(audio_path, use_query_rewriting, multi_query_choice, retr
                 retrieved_chuncks = bm25_retriever(query, text_splitter)
                 all_chuncks.extend(retrieved_chuncks)
             elif (retriever_choice == "hybrid"):
-                retrieved_chuncks = bm25_retriever(query, text_splitter)
-                all_chuncks.extend(retrieved_chuncks)
+                retrieved_chuncks_hybrid = hybrid_retriever(query, embedding_model, text_splitter)
+                all_chuncks.extend(retrieved_chuncks_hybrid)
 
             unique_chuncks = {chunck.page_content: chunck for chunck in all_chuncks}.values()
 
@@ -297,7 +311,7 @@ def transcribe_and_rag(audio_path, use_query_rewriting, multi_query_choice, retr
 
 
         if use_fact_check:
-            verdict = fact_check(answer, reranked_chuncks, local_llm)
+            verdict = fact_check(answer, reranked_chuncks, query_model)
             yield gr.update(value=query_to_use), gr.update(value=f"Generated answer: {answer}\n\nFact-checked: {verdict}"), None
 
 
@@ -306,7 +320,7 @@ def transcribe_and_rag(audio_path, use_query_rewriting, multi_query_choice, retr
             audio_path = pytts_tts(norm_answer, "voice_files/pytts_rag_answer.mp3")
         elif tts_choice == "xtts":
             norm_answer = normalize_numbers_tts(answer)
-            audio_path = xtts_tts(norm_answer, "XTTS_Csenge_sample.wav", "xtts_rag_answer_csenge.mp3")
+            audio_path = xtts_tts(norm_answer, "XTTS_Boti_sample.wav", "xtts_rag_answer_boti_complex.mp3")
 
 
         mlflow.log_metric("total_time", time.time() - total_start)

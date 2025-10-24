@@ -22,7 +22,7 @@ embedding_model = HuggingFaceEmbeddings(
 #embedding_model = OllamaEmbeddings(model="nomic-embed-text")
 
 local_llm = OllamaLLM(model=generationmodel_name, temperature=0.7)
-query_model = OllamaLLM(model=querymodel_name)
+query_model = OllamaLLM(model=fastmodel_name)
 
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=1500, chunk_overlap=50, separators=["\n\n", "\n", ".", " "]
@@ -34,11 +34,26 @@ def strip_reasoning(text):
     return re.sub(r".*?</think>", "", text, flags=re.DOTALL).strip()
 
 def normalize_numbers_tts(query):
-    p = inflect.engine()
+    engine = inflect.engine()
+
     def replace_number(match):
-        number = match.group()
+        number_str = match.group()
+        clean_number = re.sub(r'[.,]', '', number_str)
         try:
-            return p.number_to_words(int(number))
+            words = engine.number_to_words(int(clean_number))
+            return words
         except:
-            return number 
-    return re.sub(r'\b\d+\b', replace_number, query)
+            return number_str
+
+    pattern = r'\b\d{1,3}(?:[.,]\d{3})*\b|\b\d+\b'
+    return re.sub(pattern, replace_number, query)
+
+def lol(query):
+    loader = WikipediaLoader(query=query, lang="en", load_max_docs=2)
+    raw_docs = loader.load()
+    print(f"Vamos: {len(raw_docs)}")
+    print(raw_docs)
+
+#lol('Climate change economic impacts on food security')
+#lol('Climate change effects on food access')
+#lol('Climate change effects on agricultural yields')
