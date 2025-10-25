@@ -130,9 +130,8 @@ def generate_test_dataset_from_corpus(llm, max_questions_per_chunk=2, output_fil
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(test_dataset, f, ensure_ascii=False, indent=2)
 
-def generate_complex_questions_from_corpus(corpus_path, llm=generator_llm, max_questions_per_topic=2, chunks_per_topic=3):
-
-    with open(corpus_path, "r", encoding="utf-8") as f:
+def generate_complex_questions_from_corpus(llm=generator_llm, max_questions_per_topic=2, chunks_per_topic=3):
+    with open("chunk_corpus.json", "r", encoding="utf-8") as f:
         corpus = json.load(f)
 
     topics = {}
@@ -144,7 +143,6 @@ def generate_complex_questions_from_corpus(corpus_path, llm=generator_llm, max_q
 
     for topic, chunks in topics.items():
         if len(chunks) < chunks_per_topic:
-            print(f"⚠️ Skipping {topic}, not enough chunks ({len(chunks)})")
             continue
 
         selected_chunks = random.sample(chunks, chunks_per_topic)
@@ -191,13 +189,8 @@ def generate_complex_questions_from_corpus(corpus_path, llm=generator_llm, max_q
                     "reference": combined_text
                 })
 
-        print(f"✅ Generated {len(qa_pairs)} complex questions for topic '{topic}'")
-
-
     with open("hard_questions.json", "w", encoding="utf-8") as f:
         json.dump(complex_dataset, f, ensure_ascii=False, indent=2)
-
-    print(f"\n💾 Saved {len(complex_dataset)} total questions to hard_questions.json")
 
 def get_retrievers_from_corpus():
     with open("chunk_corpus.json", "r", encoding="utf-8") as f:
@@ -310,3 +303,4 @@ def rag_evaluation(results_path="rag_comparison_results.json"):
 #create_chunk_corpus(topics)
 #generate_test_dataset_from_corpus(generator_llm)
 #evaluate_rag_configs(rag_configs)
+generate_complex_questions_from_corpus()
