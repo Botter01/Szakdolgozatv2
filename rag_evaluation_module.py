@@ -20,6 +20,14 @@ topics = ["Hungarian cuisine", "Budapest history", "Climate change", "1956 Hunga
 
 rag_configs = [
     {
+        "name": "baseline_hybrid",
+        "retriever": "hybrid",
+        "reranking": False,
+        "multi_query_paraphrase": False,
+        "multi_query_aspect": False,
+        "query_rewriting": False,
+    },
+    {
         "name": "rewritten_faiss",
         "retriever": "faiss",
         "reranking": False,
@@ -210,7 +218,7 @@ def evaluate_rag_configs(rag_configs):
             all_results = []
             print(f"\nRunning config: {config['name']}")
             
-            with open("question_dataset.json", "r", encoding="utf-8") as f:
+            with open("hard_questions.json", "r", encoding="utf-8") as f:
                 json_dataset = json.load(f)
 
             total_start = time.time()
@@ -218,6 +226,7 @@ def evaluate_rag_configs(rag_configs):
             for i, item in enumerate(json_dataset):
                 query = item["question"]
                 expected = item["expected"]
+                reference = item["reference"]
                 print(f"Kérdés: {query} és ennyi van meg {i+1}/{len(json_dataset)}")
 
                 query_to_use = query_rewriting(query, query_model) if config.get("query_rewriting") else query
@@ -245,10 +254,11 @@ def evaluate_rag_configs(rag_configs):
                     "question": query_to_use,
                     "expected": expected,
                     "answer": answer,
+                    "reference": reference,
                     "retrieved_contexts": [c.page_content for c in reranked_chunks]
                 })
 
-            with open("rag_comparison_results.json", "a", encoding="utf-8") as f:
+            with open("rag_comparison_hard_results.json", "a", encoding="utf-8") as f:
                 json.dump(all_results, f, ensure_ascii=False, indent=2)
 
             mlflow.log_metric("total_time", time.time() - total_start)
@@ -302,5 +312,5 @@ def rag_evaluation(results_path="rag_comparison_results.json"):
 
 #create_chunk_corpus(topics)
 #generate_test_dataset_from_corpus(generator_llm)
-#evaluate_rag_configs(rag_configs)
-generate_complex_questions_from_corpus()
+evaluate_rag_configs(rag_configs)
+#generate_complex_questions_from_corpus()
