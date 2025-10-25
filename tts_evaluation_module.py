@@ -1,4 +1,4 @@
-from jiwer import wer
+from jiwer import wer, cer, wer_standardize
 from sentence_transformers import SentenceTransformer, util
 import librosa 
 from tts_module import *
@@ -27,7 +27,7 @@ def stt_eval(eval_dataset_tts_stt, excel_path='evaluation_results/stt_eval.xlsx'
     model = SentenceTransformer('all-MiniLM-L6-v2')
 
     for transcription, eval_text in zip(transcriptions, eval_dataset_tts_stt):
-        whisper_wer = wer(eval_text, transcription)
+        whisper_wer = wer(eval_text, transcription, wer_standardize, wer_standardize)
         similarity = util.cos_sim(model.encode(eval_text), model.encode(transcription))
         stt_results.append({
             'Whisper Transcription': transcription,
@@ -56,8 +56,8 @@ def wer_score_tts(eval_dataset_tts_stt, excel_path='evaluation_results/tts_eval.
     wer_results = []
 
     for eval, pytts, xtts in zip(eval_dataset_tts_stt, pytts_transcribe_results, xtts_transcribe_results):
-        pytts_wer = wer(eval, pytts)
-        xtts_wer = wer(eval, xtts)
+        pytts_wer = wer(eval, pytts, wer_standardize, wer_standardize)
+        xtts_wer = wer(eval, xtts, wer_standardize, wer_standardize)
         wer_results.append({
             'PyTTS Transcription': pytts,
             'PyTTS WER': pytts_wer,
@@ -67,6 +67,36 @@ def wer_score_tts(eval_dataset_tts_stt, excel_path='evaluation_results/tts_eval.
 
     df = pd.DataFrame(wer_results)
     df.to_excel(excel_path, index=False, sheet_name='TTS WER Results')
+
+def cer_score_tts(eval_dataset_tts_stt, excel_path='evaluation_results/tts_eval.xlsx'):
+    pytts_results = []
+    xtts_results = []
+    pytts_transcribe_results = []
+    xtts_transcribe_results = []
+
+    for i, text in enumerate(eval_dataset_tts_stt):
+        pytts_results.append(pytts_tts(text, f"voice_files/pytts_answer_{i}.wav"))
+        xtts_results.append(xtts_tts(text, "XTTS_Boti_sample.wav", f"xtts_answer_{i}.wav"))
+
+    for pytts, xtts in zip(pytts_results, xtts_results):
+        pytts_transcribe_results.append(transcribe(pytts, whisper_model))
+        xtts_transcribe_results.append(transcribe(xtts, whisper_model))
+
+    cer_results = []
+
+    for eval, pytts, xtts in zip(eval_dataset_tts_stt, pytts_transcribe_results, xtts_transcribe_results):
+        pytts_cer = cer(eval, pytts)
+        xtts_cer = cer(eval, xtts)
+        cer_results.append({
+            'PyTTS Transcription': pytts,
+            'PyTTS CER': pytts_cer,
+            'XTTS Transcription': xtts,
+            'XTTS CER': xtts_cer
+        })
+
+    df = pd.DataFrame(cer_results)
+    with pd.ExcelWriter(excel_path, engine='openpyxl', mode='a') as writer:
+        df.to_excel(writer, index=False, sheet_name='TTS CER Results')
 
 def pesq_score_tts(sr=16000, excel_path='evaluation_results/tts_eval.xlsx'):
     pytts_voice = [
@@ -105,8 +135,9 @@ def pesq_score_tts(sr=16000, excel_path='evaluation_results/tts_eval.xlsx'):
 
     df = pd.DataFrame(results)
     with pd.ExcelWriter(excel_path, engine='openpyxl', mode='a') as writer:
-        df.to_excel(writer, index=False, sheet_name='PESQ Results')
+        df.to_excel(writer, index=False, sheet_name='TTS PESQ Results')
 
-stt_eval(eval_dataset_tts_stt)
-#wer_score_tts(eval_dataset_tts_stt)
-#pesq_score_tts()
+#stt_eval(eval_dataset_tts_stt)
+wer_score_tts(eval_dataset_tts_stt)
+cer_score_tts(eval_dataset_tts_stt)
+pesq_score_tts()
