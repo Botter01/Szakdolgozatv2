@@ -35,9 +35,9 @@ def query_rewriting(query, llm):
     rewritten_query = llm.invoke(formatted_prompt).strip()
     rewritten_query = strip_reasoning(rewritten_query)
 
-    mlflow.log_metric("rewrite_time", time.time() - start)
-    mlflow.log_param("original_query", query)
-    mlflow.log_param("rewritten_query", rewritten_query)
+    #mlflow.log_metric("rewrite_time", time.time() - start)
+    #mlflow.log_param("original_query", query)
+    #mlflow.log_param("rewritten_query", rewritten_query)
 
     return rewritten_query
 
@@ -66,8 +66,8 @@ def multi_aspect_query(query, llm, variant_number):
     response = llm.invoke(formatted_prompt).strip()
     sub_queries = [q.lstrip("-• ").rstrip().strip() for q in response.split("\n") if q.strip()]
 
-    mlflow.log_param("aspect_sub_queries", sub_queries)
-    mlflow.log_metric("multi_aspect_query_time", time.time() - multi_aspect_query_start)
+    #mlflow.log_param("aspect_sub_queries", sub_queries)
+    #mlflow.log_metric("multi_aspect_query_time", time.time() - multi_aspect_query_start)
     print(sub_queries)
 
     return [query] + sub_queries[:variant_number]
@@ -87,8 +87,8 @@ def multi_paraphrase_query(query, llm, variant_number):
     formatted_prompt = prompt.format(n=variant_number, query=query)
     response = llm.invoke(formatted_prompt).strip()
     variants = [q.lstrip("-• ").rstrip().strip() for q in response.split("\n") if q.strip()]
-    mlflow.log_param("query_variants", variants)
-    mlflow.log_metric("multi_query_time", time.time() - multi_query_start)
+    #mlflow.log_param("query_variants", variants)
+    #mlflow.log_metric("multi_query_time", time.time() - multi_query_start)
 
     return [query] + variants[:variant_number]
 
@@ -159,7 +159,7 @@ def hybrid_retriever(query, embedding_model, text_splitter, top_k=4, n_docs=2):
 
     reranked_chuncks = rerank_chuncks(query, all_chuncks)
 
-    mlflow.log_metric("retrieving_time_hybrid", time.time() - retriev_start)
+    #mlflow.log_metric("retrieving_time_hybrid", time.time() - retriev_start)
 
     return reranked_chuncks[:top_k]
 
@@ -173,8 +173,8 @@ def rerank_chuncks(query, chuncks):
 
     avg_score = float(sum(scores) / len(scores)) if len(scores) > 0 else 0
 
-    mlflow.log_metric("rerank_time", time.time() - start)
-    mlflow.log_metric("rerank_avg_score", avg_score)
+    #mlflow.log_metric("rerank_time", time.time() - start)
+    #mlflow.log_metric("rerank_avg_score", avg_score)
 
     return reranked_chuncks
 
@@ -196,12 +196,12 @@ def generate_answer(query, reranked_chuncks, llm, model_name):
     
     chain = prompt | llm
     response = chain.invoke({"context": context, "question": query})
-    mlflow.log_metric("llm_time", time.time() - start)
-    mlflow.log_param("answer_generator_model", model_name)
+    #mlflow.log_metric("llm_time", time.time() - start)
+    #mlflow.log_param("answer_generator_model", model_name)
 
     answer = strip_reasoning(response)
-    mlflow.log_param("reasoning", response)
-    mlflow.log_metric("answer_length", len(answer))
+    #mlflow.log_param("reasoning", response)
+    #mlflow.log_metric("answer_length", len(answer))
 
     return answer
 

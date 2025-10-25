@@ -22,7 +22,7 @@ embedding_model = HuggingFaceEmbeddings(
 #embedding_model = OllamaEmbeddings(model="nomic-embed-text")
 
 local_llm = OllamaLLM(model=generationmodel_name, temperature=0.7)
-query_model = OllamaLLM(model=fastmodel_name)
+query_model = OllamaLLM(model=querymodel_name)
 
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=1500, chunk_overlap=50, separators=["\n\n", "\n", ".", " "]
