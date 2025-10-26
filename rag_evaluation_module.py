@@ -20,38 +20,6 @@ topics = ["Hungarian cuisine", "Budapest history", "Climate change", "1956 Hunga
 
 rag_configs = [
     {
-        "name": "baseline_hybrid",
-        "retriever": "hybrid",
-        "reranking": False,
-        "multi_query_paraphrase": False,
-        "multi_query_aspect": False,
-        "query_rewriting": False,
-    },
-    {
-        "name": "rewritten_faiss",
-        "retriever": "faiss",
-        "reranking": False,
-        "multi_query_paraphrase": False,
-        "multi_query_aspect": False,
-        "query_rewriting": True,
-    },
-    {
-        "name": "rewritten_bm25",
-        "retriever": "bm25",
-        "reranking": False,
-        "multi_query_paraphrase": False,
-        "multi_query_aspect": False,
-        "query_rewriting": True,
-    },
-    {
-        "name": "rewritten_hybrid",
-        "retriever": "hybrid",
-        "reranking": False,
-        "multi_query_paraphrase": False,
-        "multi_query_aspect": False,
-        "query_rewriting": True,
-    },
-    {
         "name": "faiss_paraphrase",
         "retriever": "faiss",
         "reranking": True,
@@ -231,18 +199,33 @@ def evaluate_rag_configs(rag_configs):
 
                 query_to_use = query_rewriting(query, query_model) if config.get("query_rewriting") else query
 
-                if config["retriever"] == "faiss":
-                    retrieved_chunks = faiss_retriever.get_relevant_documents(query_to_use)
-                elif config["retriever"] == "bm25":
-                    retrieved_chunks = bm25_retriever.get_relevant_documents(query_to_use)
-                elif config["retriever"] == "hybrid":
-                    faiss_results = faiss_retriever.get_relevant_documents(query_to_use)
-                    bm25_results = bm25_retriever.get_relevant_documents(query_to_use)
-                    retrieved_chunks = list({c.page_content: c for c in faiss_results + bm25_results}.values())
-                    reranked_chunks = rerank_chuncks(query_to_use, retrieved_chunks)
+                if config.get("multi_query_paraphrase"):
+                    query_to_use = multi_paraphrase_query(query_to_use, generator_llm, 2)
+
+                if config.get("multi_query_aspect"):
+                    query_to_use = multi_aspect_query(query_to_use, generator_llm, 2)
+
+                if isinstance(query_to_use, str):
+                    query_list = [query_to_use]
+                else:
+                    query_list = query_to_use
+
+                retrieved_chunks = []
+
+                for q in query_list:
+                    if config["retriever"] == "faiss":
+                        retrieved_chunks.extend(faiss_retriever.get_relevant_documents(q))
+                    elif config["retriever"] == "bm25":
+                        retrieved_chunks.extend(bm25_retriever.get_relevant_documents(q))
+                    elif config["retriever"] == "hybrid":
+                        faiss_results = faiss_retriever.get_relevant_documents(q)
+                        bm25_results = bm25_retriever.get_relevant_documents(q)
+                        retrieved_chunks.extend(faiss_results + bm25_results)
+
+                retrieved_chunks = list({c.page_content: c for c in retrieved_chunks}.values())
 
                 if config.get("reranking"):
-                    reranked_chunks = rerank_chuncks(query_to_use, retrieved_chunks)
+                    reranked_chunks = rerank_chuncks(query_list[0], retrieved_chunks)
                 else:
                     reranked_chunks = retrieved_chunks[:4]
 
@@ -251,7 +234,7 @@ def evaluate_rag_configs(rag_configs):
                 all_results.append({
                     "config": config["name"],
                     "topic": item["topic"],
-                    "question": query_to_use,
+                    "question": query_to_use if isinstance(query_to_use, list) else [query_to_use],
                     "expected": expected,
                     "answer": answer,
                     "reference": reference,
@@ -273,6 +256,7 @@ def rag_evaluation(results_path="rag_comparison_results.json"):
         question = item.get("question")
         answer = item.get("answer")
         expected = item.get("expected")
+        reference = item.get("reference")
         contexts = item.get("retrieved_contexts", [])
 
         eval_rows.append({
@@ -281,7 +265,7 @@ def rag_evaluation(results_path="rag_comparison_results.json"):
             "response": answer,
             "retrieved_contexts": contexts,
             "ground_truths": expected,
-            "reference": "\n\n".join(contexts)
+            "reference": reference
         })
 
     samples = [
