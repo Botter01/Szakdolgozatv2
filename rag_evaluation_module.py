@@ -246,7 +246,7 @@ def evaluate_rag_configs(rag_configs):
 
             mlflow.log_metric("total_time", time.time() - total_start)
 
-def rag_evaluation(results_path="rag_comparison_hard_results.json"):
+def rag_evaluation(results_path="rag_comparison_hard_results_last_two.json"):
     with open(results_path, "r", encoding="utf-8") as f:
         json_dataset = json.load(f)
 
@@ -297,10 +297,10 @@ def rag_evaluation(results_path="rag_comparison_hard_results.json"):
 
     df = results.to_pandas()
     print(df)
-    df.to_csv("ragas_evaluation_results_ultimate_complex.csv", index=False)
+    df.to_csv("ragas_evaluation_results_ultimate_complex_last_two.csv", index=False)
 
 #create_chunk_corpus(topics)
 #generate_test_dataset_from_corpus(generator_llm)
 #evaluate_rag_configs(rag_configs)
 #generate_complex_questions_from_corpus()
-#rag_evaluation()
+rag_evaluation()
