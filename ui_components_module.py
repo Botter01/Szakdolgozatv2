@@ -19,6 +19,13 @@ rag_output = gr.Textbox(
     interactive=False
 )
 
+fact_check_output = gr.Textbox(
+    label="Fact check eredmény",
+    lines=10,
+    max_lines=20,
+    interactive=False
+)
+
 tts_output = gr.Audio(
     label="Válasz hangban",
     type="filepath"

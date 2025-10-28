@@ -12,6 +12,8 @@ fastmodel_name = "qwen3:0.6b"
 querymodel_name = "phi3:medium"
 generationmodel_name = "qwen3:4b"
 evalmodel_name = "qwen3:8b"
+deepseek_model = "deepseek-r1:1.5b"
+gemma_model = "gemma3:4b"
 whisper_model = whisper.load_model("small")
 
 embedding_model = HuggingFaceEmbeddings(
@@ -22,7 +24,7 @@ embedding_model = HuggingFaceEmbeddings(
 #embedding_model = OllamaEmbeddings(model="nomic-embed-text")
 
 local_llm = OllamaLLM(model=generationmodel_name, temperature=0.7)
-query_model = OllamaLLM(model=querymodel_name)
+query_model = OllamaLLM(model=gemma_model)
 
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=1500, chunk_overlap=50, separators=["\n\n", "\n", ".", " "]
@@ -54,6 +56,6 @@ def lol(query):
     print(f"Vamos: {len(raw_docs)}")
     print(raw_docs)
 
-#lol('Climate change economic impacts on food security')
+#lol('1956 Hungarian Revolution political consequences')
 #lol('Climate change effects on food access')
 #lol('Climate change effects on agricultural yields')

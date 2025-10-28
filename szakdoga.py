@@ -26,6 +26,7 @@ def query_rewriting(query, llm):
         template=(
             "You are a query optimizer for a retrieval system.\n"
             "Rewrite this user query so that it is explicit, factual, and suitable for Wikipedia search.\n"
+            "Don't give any reasoning, just the rewritten query"
             "User query: \"{query}\"\n\nRewritten query:"
         ),
         input_variables=["query"],
@@ -56,7 +57,6 @@ def multi_aspect_query(query, llm, variant_number):
             "- 1956 Hungarian Revolution political causes\n"
             "- 1956 Hungarian Revolution social impact\n"
             "- 1956 Hungarian Revolution economic consequences\n"
-            "- Soviet response to the 1956 Hungarian Revolution\n\n"
             "Now create {n} sub-queries for:\n\"{query}\"\n\n"
             "Output each sub-query on a new line, without numbering or bullet points."
         ),
@@ -94,7 +94,7 @@ def multi_paraphrase_query(query, llm, variant_number):
 
 def faiss_retriever(query, embedding_model, text_splitter, top_k=4, n_docs=2):
     loader = WikipediaLoader(query=query, lang="en", load_max_docs=n_docs)
-    time.sleep(2)
+    time.sleep(4)
     wiki_docs = loader.load()
 
     wiki_chuncks = text_splitter.split_documents(wiki_docs)
@@ -123,7 +123,7 @@ def faiss_retriever(query, embedding_model, text_splitter, top_k=4, n_docs=2):
 def bm25_retriever(query, text_splitter, top_k=4, n_docs=2):
     print(f"Query BM25-nél {query}")
     loader = WikipediaLoader(query=query, lang="en", load_max_docs=n_docs)
-    time.sleep(2)
+    time.sleep(4)
     raw_docs = loader.load()
     print(f"Vamos: {len(raw_docs)}")
 
@@ -240,18 +240,18 @@ def transcribe_and_rag(audio_path, use_query_rewriting, multi_query_choice, retr
         total_start = time.time()
 
         query = transcribe(audio_path, whisper_model)
-        yield gr.update(value=f"Transcribed query: {query}"), None, None
+        yield gr.update(value=f"Transcribed query: {query}"), None, None, None
 
         if (use_query_rewriting):
-            rewritten_query = query_rewriting(query, generator_model)
+            rewritten_query = query_rewriting(query, query_model)
             query_to_use = rewritten_query
-            yield gr.update(value=f"Original query: {query}\n\nRewritten query: {query_to_use}"), None, None
+            yield gr.update(value=f"Original query: {query}\n\nRewritten query: {query_to_use}"), None, None, None
         else:
             query_to_use = query
         
 
         if (multi_query_choice == "paraphrase"):
-            queries = multi_paraphrase_query(query_to_use, generator_model, 3)
+            queries = multi_paraphrase_query(query_to_use, query_model, 3)
             all_chuncks = []
 
             for query in queries:
@@ -268,7 +268,7 @@ def transcribe_and_rag(audio_path, use_query_rewriting, multi_query_choice, retr
             unique_chuncks = {chunck.page_content: chunck for chunck in all_chuncks}.values()
 
         elif (multi_query_choice == "aspect"):
-            queries = multi_aspect_query(query_to_use, generator_model, 3)
+            queries = multi_aspect_query(query_to_use, query_model, 3)
             all_chuncks = []
 
             for query in queries:
@@ -307,12 +307,12 @@ def transcribe_and_rag(audio_path, use_query_rewriting, multi_query_choice, retr
         mlflow.log_param("reranked_chuncks", reranked_chuncks)
 
         answer = generate_answer(query_to_use, reranked_chuncks, local_llm, generationmodel_name)
-        yield gr.update(value=query_to_use), gr.update(value=f"Generated answer: {answer}"), None
+        yield gr.update(value=query_to_use), gr.update(value=f"Generated answer: {answer}"), None, None
 
 
         if use_fact_check:
             verdict = fact_check(answer, reranked_chuncks, query_model)
-            yield gr.update(value=query_to_use), gr.update(value=f"Generated answer: {answer}\n\nFact-checked: {verdict}"), None
+            yield gr.update(value=query_to_use), gr.update(value=f"Generated answer: {answer}"), None, gr.update(value=f"Fact-checked: {verdict}")
 
 
         if tts_choice == "pytts":
@@ -325,9 +325,9 @@ def transcribe_and_rag(audio_path, use_query_rewriting, multi_query_choice, retr
 
         mlflow.log_metric("total_time", time.time() - total_start)
 
-        yield gr.update(value=query_to_use), gr.update(value=answer), gr.update(value=audio_path, autoplay=True)
+        yield gr.update(value=query_to_use), gr.update(value=f"Generated answer: {answer}"), gr.update(value=audio_path, autoplay=True), gr.update(value=f"Fact-checked: {verdict}")
 
-    return query, answer, audio_path
+    return query, answer, audio_path, verdict
 
 with gr.Blocks() as ui:
     gr.Markdown(f"<u><h1 style='text-align: center;'>{interface_title}</h1></u>")
@@ -356,6 +356,7 @@ with gr.Blocks() as ui:
         with gr.Column(scale=2):
             transcript_output.render()
             rag_output.render()
+            fact_check_output.render()
             tts_output.render()
 
     audio_input.change(
@@ -369,7 +370,7 @@ with gr.Blocks() as ui:
             tts_choice,
             chunk_rerank_toggle,
         ],
-        outputs=[transcript_output, rag_output, tts_output]
+        outputs=[transcript_output, rag_output, tts_output, fact_check_output]
     )
 
 if __name__ == "__main__":
