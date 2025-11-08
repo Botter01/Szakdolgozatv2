@@ -28,12 +28,14 @@ def stt_eval(eval_dataset_tts_stt, excel_path='evaluation_results/stt_eval.xlsx'
 
     for transcription, eval_text in zip(transcriptions, eval_dataset_tts_stt):
         whisper_wer = wer(eval_text, transcription, wer_standardize, wer_standardize)
+        whisper_cer = cer(eval_text, transcription)
         similarity = util.cos_sim(model.encode(eval_text), model.encode(transcription))
         stt_results.append({
             'Whisper Transcription': transcription,
             'Evaluation Text': eval_text,
             "Semantic Similarity": float(similarity),
-            'Transcription WER': whisper_wer
+            'Transcription WER': whisper_wer,
+            'Transcription CER': whisper_cer
         })
 
     df = pd.DataFrame(stt_results)
@@ -138,6 +140,6 @@ def pesq_score_tts(sr=16000, excel_path='evaluation_results/tts_eval.xlsx'):
         df.to_excel(writer, index=False, sheet_name='TTS PESQ Results')
 
 #stt_eval(eval_dataset_tts_stt)
-wer_score_tts(eval_dataset_tts_stt)
-cer_score_tts(eval_dataset_tts_stt)
-pesq_score_tts()
+#wer_score_tts(eval_dataset_tts_stt)
+#cer_score_tts(eval_dataset_tts_stt)
+#pesq_score_tts()

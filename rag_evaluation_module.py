@@ -303,4 +303,4 @@ def rag_evaluation(results_path="rag_comparison_hard_results_last_two.json"):
 #generate_test_dataset_from_corpus(generator_llm)
 #evaluate_rag_configs(rag_configs)
 #generate_complex_questions_from_corpus()
-rag_evaluation()
+#rag_evaluation()

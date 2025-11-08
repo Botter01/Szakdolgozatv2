@@ -325,7 +325,11 @@ def transcribe_and_rag(audio_path, use_query_rewriting, multi_query_choice, retr
 
         mlflow.log_metric("total_time", time.time() - total_start)
 
-        yield gr.update(value=query_to_use), gr.update(value=f"Generated answer: {answer}"), gr.update(value=audio_path, autoplay=True), gr.update(value=f"Fact-checked: {verdict}")
+        if use_fact_check:
+            yield gr.update(value=query_to_use), gr.update(value=f"Generated answer: {answer}"), gr.update(value=audio_path, autoplay=True), gr.update(value=f"Fact-checked: {verdict}")
+        else:
+            yield gr.update(value=query_to_use), gr.update(value=f"Generated answer: {answer}"), gr.update(value=audio_path, autoplay=True), None
+            verdict = "There wasn't a fact-checking step"
 
     return query, answer, audio_path, verdict
 
